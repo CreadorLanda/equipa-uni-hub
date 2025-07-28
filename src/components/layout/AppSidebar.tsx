@@ -48,7 +48,7 @@ export function AppSidebar() {
 
   const isActive = (path: string) => currentPath === path;
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
-    isActive ? "bg-primary text-primary-foreground font-medium" : "hover:bg-primary/10";
+    isActive ? "bg-primary text-primary-foreground font-medium" : "text-foreground hover:bg-primary/10 hover:text-primary";
 
   const filteredItems = menuItems.filter(item => 
     user?.role && item.roles.includes(user.role)
