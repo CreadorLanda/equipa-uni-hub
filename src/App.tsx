@@ -34,7 +34,7 @@ const App = () => (
               </ProtectedRoute>
             } />
             <Route path="/equipamentos" element={
-              <ProtectedRoute allowedRoles={['tecnico', 'secretario']}>
+              <ProtectedRoute allowedRoles={['tecnico']}>
                 <Equipamentos />
               </ProtectedRoute>
             } />
@@ -49,7 +49,7 @@ const App = () => (
               </ProtectedRoute>
             } />
             <Route path="/relatorios" element={
-              <ProtectedRoute allowedRoles={['tecnico', 'coordenador']}>
+              <ProtectedRoute allowedRoles={['tecnico']}>
                 <Relatorios />
               </ProtectedRoute>
             } />

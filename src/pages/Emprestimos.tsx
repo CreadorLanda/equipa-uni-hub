@@ -24,6 +24,7 @@ import { mockLoans, mockEquipments } from '@/data/mockData';
 import { Loan, LoanStatus } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const statusOptions: { value: LoanStatus; label: string; color: string }[] = [
   { value: 'ativo', label: 'Ativo', color: 'bg-info text-info-foreground' },
@@ -41,6 +42,7 @@ export const Emprestimos = () => {
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
+  const permissions = usePermissions();
 
   const [formData, setFormData] = useState({
     equipmentId: '',
@@ -56,7 +58,13 @@ export const Emprestimos = () => {
                          loan.equipmentName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || loan.status === statusFilter;
     
-    return matchesSearch && matchesStatus;
+    // Filtra empréstimos baseado nas permissões
+    if (permissions.canViewAllLoans) {
+      return matchesSearch && matchesStatus; // Técnico vê todos
+    } else {
+      // Outros perfis só veem próprios empréstimos
+      return matchesSearch && matchesStatus && loan.userId === user?.id;
+    }
   });
 
   const getStatusBadge = (status: LoanStatus) => {
@@ -149,13 +157,14 @@ export const Emprestimos = () => {
           </p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-primary">
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Empréstimo
-            </Button>
-          </DialogTrigger>
+        {permissions.canRequestLoans && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-primary">
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Empréstimo
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Registrar Novo Empréstimo</DialogTitle>
@@ -229,6 +238,7 @@ export const Emprestimos = () => {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Summary Cards */}
@@ -358,15 +368,17 @@ export const Emprestimos = () => {
                         {getStatusBadge(isOverdue(loan) ? 'atrasado' : loan.status)}
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleReturn(loan)}
-                          className="bg-success text-success-foreground hover:bg-success/90"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Devolver
-                        </Button>
+                        {permissions.canConfirmReturns && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReturn(loan)}
+                            className="bg-success text-success-foreground hover:bg-success/90"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Devolver
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -450,7 +462,7 @@ export const Emprestimos = () => {
                       <TableCell>{formatDate(loan.expectedReturnDate)}</TableCell>
                       <TableCell>{getStatusBadge(loan.status)}</TableCell>
                       <TableCell>
-                        {(loan.status === 'ativo' || loan.status === 'atrasado') && (
+                        {(loan.status === 'ativo' || loan.status === 'atrasado') && permissions.canConfirmReturns && (
                           <Button
                             variant="outline"
                             size="sm"
