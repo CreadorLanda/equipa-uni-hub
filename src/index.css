@@ -17,26 +17,56 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* University Brand Colors */
+    --primary: 214 95% 48%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 214 95% 92%;
+    --primary-dark: 214 95% 35%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 142 76% 36%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-light: 142 76% 90%;
+
+    --accent: 39 96% 48%;
+    --accent-foreground: 0 0% 100%;
+    --accent-light: 39 96% 92%;
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 39 96% 48%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 214 95% 48%;
+    --info-foreground: 0 0% 100%;
+
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 214 95% 48%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(214 95% 48%), hsl(214 95% 35%));
+    --gradient-secondary: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 28%));
+    --gradient-accent: linear-gradient(135deg, hsl(39 96% 48%), hsl(39 96% 38%));
+    --gradient-surface: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 40% 98%));
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(214 95% 48% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(214 95% 48% / 0.1), 0 2px 4px -1px hsl(214 95% 48% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(214 95% 48% / 0.1), 0 4px 6px -2px hsl(214 95% 48% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(214 95% 48% / 0.1), 0 10px 10px -5px hsl(214 95% 48% / 0.04);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
     --sidebar-background: 0 0% 98%;
 
