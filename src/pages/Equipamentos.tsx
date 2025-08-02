@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,11 +19,13 @@ import {
   Tablet,
   Projector,
   Printer,
-  Monitor
+  Monitor,
+  Loader2
 } from 'lucide-react';
-import { mockEquipments } from '@/data/mockData';
 import { Equipment, EquipmentType, EquipmentStatus } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { equipmentAPI } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 const equipmentTypes: { value: EquipmentType; label: string; icon: React.ComponentType<any> }[] = [
   { value: 'notebook', label: 'Notebook', icon: Laptop },
@@ -44,13 +46,47 @@ const statusOptions: { value: EquipmentStatus; label: string; color: string }[] 
 ];
 
 export const Equipamentos = () => {
-  const [equipments, setEquipments] = useState<Equipment[]>(mockEquipments);
+  const { user } = useAuth();
+  const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+
+  // Carrega equipamentos da API
+  useEffect(() => {
+    loadEquipments();
+  }, []);
+
+  const loadEquipments = async () => {
+    try {
+      setLoading(true);
+      const data = await equipmentAPI.list();
+      setEquipments(data.results || data);
+    } catch (error) {
+      console.error('Erro ao carregar equipamentos:', error);
+      toast({
+        title: "Erro ao carregar equipamentos",
+        description: "Não foi possível carregar a lista de equipamentos.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verifica permissões do usuário
+  const canManageEquipment = () => {
+    return user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role);
+  };
+
+  const canDeleteEquipment = () => {
+    return user?.role === 'coordenador';
+  };
 
   const [formData, setFormData] = useState({
     brand: '',
@@ -88,34 +124,74 @@ export const Equipamentos = () => {
     return <IconComponent className="w-4 h-4" />;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (editingEquipment) {
-      // Update existing equipment
-      setEquipments(prev => prev.map(eq => 
-        eq.id === editingEquipment.id 
-          ? { ...eq, ...formData }
-          : eq
-      ));
+    if (!canManageEquipment()) {
       toast({
-        title: "Equipamento atualizado!",
-        description: "As informações foram salvas com sucesso.",
+        title: "Acesso negado",
+        description: "Você não tem permissão para gerenciar equipamentos.",
+        variant: "destructive"
       });
-    } else {
-      // Add new equipment
-      const newEquipment: Equipment = {
-        id: Date.now().toString(),
-        ...formData
-      };
-      setEquipments(prev => [...prev, newEquipment]);
-      toast({
-        title: "Equipamento cadastrado!",
-        description: "O novo equipamento foi adicionado ao sistema.",
-      });
+      return;
     }
+
+    setSubmitting(true);
     
-    resetForm();
+    try {
+      if (editingEquipment) {
+        // Update existing equipment
+        const updatedEquipment = await equipmentAPI.update(editingEquipment.id, {
+          brand: formData.brand,
+          model: formData.model,
+          type: formData.type,
+          status: formData.status,
+          serial_number: formData.serialNumber,
+          acquisition_date: formData.acquisitionDate,
+          description: formData.description,
+          location: formData.location
+        });
+        
+        setEquipments(prev => prev.map(eq => 
+          eq.id === editingEquipment.id ? updatedEquipment : eq
+        ));
+        
+        toast({
+          title: "Equipamento atualizado!",
+          description: "As informações foram salvas com sucesso.",
+        });
+      } else {
+        // Add new equipment
+        const newEquipment = await equipmentAPI.create({
+          brand: formData.brand,
+          model: formData.model,
+          type: formData.type,
+          status: formData.status,
+          serial_number: formData.serialNumber,
+          acquisition_date: formData.acquisitionDate,
+          description: formData.description,
+          location: formData.location
+        });
+        
+        setEquipments(prev => [...prev, newEquipment]);
+        
+        toast({
+          title: "Equipamento cadastrado!",
+          description: "O novo equipamento foi adicionado ao sistema.",
+        });
+      }
+      
+      resetForm();
+    } catch (error) {
+      console.error('Erro ao salvar equipamento:', error);
+      toast({
+        title: "Erro ao salvar",
+        description: "Não foi possível salvar o equipamento. Verifique os dados.",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -148,27 +224,82 @@ export const Equipamentos = () => {
     setIsDialogOpen(true);
   };
 
-  const handleToggleStatus = (equipment: Equipment) => {
-    const newStatus = equipment.status === 'inativo' ? 'disponivel' : 'inativo';
-    setEquipments(prev => prev.map(eq => 
-      eq.id === equipment.id 
-        ? { ...eq, status: newStatus as EquipmentStatus }
-        : eq
-    ));
-    toast({
-      title: "Status alterado!",
-      description: `Equipamento ${newStatus === 'inativo' ? 'desativado' : 'ativado'} com sucesso.`,
-    });
-  };
-
-  const handleDelete = (equipment: Equipment) => {
-    if (confirm('Tem certeza que deseja excluir este equipamento?')) {
-      setEquipments(prev => prev.filter(eq => eq.id !== equipment.id));
+  const handleToggleStatus = async (equipment: Equipment) => {
+    if (!canManageEquipment()) {
       toast({
-        title: "Equipamento excluído!",
-        description: "O equipamento foi removido do sistema.",
+        title: "Acesso negado",
+        description: "Você não tem permissão para alterar status de equipamentos.",
         variant: "destructive"
       });
+      return;
+    }
+
+    try {
+      const newStatus = equipment.status === 'inativo' ? 'disponivel' : 'inativo';
+      
+      if (newStatus === 'disponivel') {
+        await equipmentAPI.setAvailable(equipment.id);
+      } else {
+        // Para inativar, atualizamos diretamente
+        await equipmentAPI.update(equipment.id, { status: 'inativo' });
+      }
+      
+      setEquipments(prev => prev.map(eq => 
+        eq.id === equipment.id 
+          ? { ...eq, status: newStatus as EquipmentStatus }
+          : eq
+      ));
+      
+      toast({
+        title: "Status alterado!",
+        description: `Equipamento ${newStatus === 'inativo' ? 'desativado' : 'ativado'} com sucesso.`,
+      });
+    } catch (error) {
+      console.error('Erro ao alterar status:', error);
+      toast({
+        title: "Erro ao alterar status",
+        description: "Não foi possível alterar o status do equipamento.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDelete = async (equipment: Equipment) => {
+    if (!canDeleteEquipment()) {
+      toast({
+        title: "Acesso negado",
+        description: "Apenas coordenadores podem excluir equipamentos.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (equipment.status === 'emprestado' || equipment.status === 'reservado') {
+      toast({
+        title: "Não é possível excluir",
+        description: "Não é possível excluir equipamentos emprestados ou reservados.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (confirm('Tem certeza que deseja excluir este equipamento?')) {
+      try {
+        await equipmentAPI.delete(equipment.id);
+        setEquipments(prev => prev.filter(eq => eq.id !== equipment.id));
+        toast({
+          title: "Equipamento excluído!",
+          description: "O equipamento foi removido do sistema.",
+          variant: "destructive"
+        });
+      } catch (error) {
+        console.error('Erro ao excluir equipamento:', error);
+        toast({
+          title: "Erro ao excluir",
+          description: "Não foi possível excluir o equipamento.",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -182,13 +313,14 @@ export const Equipamentos = () => {
           </p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-primary" onClick={() => setEditingEquipment(null)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Equipamento
-            </Button>
-          </DialogTrigger>
+        {canManageEquipment() && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-primary" onClick={() => setEditingEquipment(null)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Equipamento
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>
@@ -306,16 +438,24 @@ export const Equipamentos = () => {
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={resetForm}>
+                <Button type="button" variant="outline" onClick={resetForm} disabled={submitting}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="bg-gradient-primary">
-                  {editingEquipment ? 'Atualizar' : 'Cadastrar'}
+                <Button type="submit" className="bg-gradient-primary" disabled={submitting}>
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      {editingEquipment ? 'Atualizando...' : 'Cadastrando...'}
+                    </>
+                  ) : (
+                    editingEquipment ? 'Atualizar' : 'Cadastrar'
+                  )}
                 </Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Filters */}
@@ -385,22 +525,44 @@ export const Equipamentos = () => {
       {/* Equipment Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Equipamentos ({filteredEquipments.length})</CardTitle>
+          <CardTitle>Lista de Equipamentos ({loading ? '...' : filteredEquipments.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Equipamento</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Número de Série</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Localização</TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEquipments.map((equipment) => (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin mr-2" />
+              <span>Carregando equipamentos...</span>
+            </div>
+          ) : filteredEquipments.length === 0 ? (
+            <div className="text-center py-12">
+              <MonitorSpeaker className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">Nenhum equipamento encontrado</h3>
+              <p className="text-muted-foreground mb-4">
+                {equipments.length === 0 
+                  ? "Ainda não há equipamentos cadastrados no sistema."
+                  : "Nenhum equipamento corresponde aos filtros aplicados."}
+              </p>
+              {canManageEquipment() && equipments.length === 0 && (
+                <Button onClick={() => setIsDialogOpen(true)} className="bg-gradient-primary">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Cadastrar Primeiro Equipamento
+                </Button>
+              )}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Equipamento</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Número de Série</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Localização</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredEquipments.map((equipment) => (
                 <TableRow key={equipment.id}>
                   <TableCell>
                     <div>
@@ -421,33 +583,49 @@ export const Equipamentos = () => {
                   <TableCell>{equipment.location}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(equipment)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleToggleStatus(equipment)}
-                      >
-                        <Power className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(equipment)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {canManageEquipment() && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(equipment)}
+                          title="Editar equipamento"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {canManageEquipment() && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleToggleStatus(equipment)}
+                          title={equipment.status === 'inativo' ? 'Ativar equipamento' : 'Inativar equipamento'}
+                        >
+                          <Power className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {canDeleteEquipment() && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(equipment)}
+                          title="Excluir equipamento"
+                          disabled={equipment.status === 'emprestado' || equipment.status === 'reservado'}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {!canManageEquipment() && !canDeleteEquipment() && (
+                        <span className="text-sm text-muted-foreground italic">
+                          Sem permissões
+                        </span>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>

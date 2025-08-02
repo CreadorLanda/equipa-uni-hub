@@ -1,0 +1,30 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="16" cy="16" r="15" fill="#3b82f6" stroke="#1e40af" stroke-width="2"/>
+  
+  <!-- Equipment/Gear icon -->
+  <g transform="translate(8, 8)">
+    <!-- Main gear -->
+    <circle cx="8" cy="8" r="3" fill="none" stroke="white" stroke-width="1.5"/>
+    
+    <!-- Gear teeth -->
+    <g stroke="white" stroke-width="1" fill="white">
+      <rect x="7.5" y="1" width="1" height="2"/>
+      <rect x="7.5" y="13" width="1" height="2"/>
+      <rect x="1" y="7.5" width="2" height="1"/>
+      <rect x="13" y="7.5" width="2" height="1"/>
+      
+      <!-- Diagonal teeth -->
+      <rect x="3.5" y="2.5" width="1" height="1.5" transform="rotate(45 4 3.25)"/>
+      <rect x="11.5" y="2.5" width="1" height="1.5" transform="rotate(-45 12 3.25)"/>
+      <rect x="3.5" y="12" width="1" height="1.5" transform="rotate(-45 4 12.75)"/>
+      <rect x="11.5" y="12" width="1" height="1.5" transform="rotate(45 12 12.75)"/>
+    </g>
+    
+    <!-- Inner circle -->
+    <circle cx="8" cy="8" r="1.5" fill="white"/>
+  </g>
+  
+  <!-- Letters "EH" -->
+  <text x="16" y="21" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="6" font-weight="bold">EH</text>
+</svg> 

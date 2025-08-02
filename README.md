@@ -1,73 +1,184 @@
-# Welcome to your Lovable project
+# EquipaHub - Sistema de Gestão de Equipamentos Universitários
 
-## Project info
+**Sistema completo para gestão de empréstimos e reservas de equipamentos em instituições de ensino.**
 
-**URL**: https://lovable.dev/projects/4f6b419d-669c-46f0-a77b-b2f7756d6690
+![EquipaHub](https://img.shields.io/badge/EquipaHub-Sistema%20de%20Gestão-blue)
+![React](https://img.shields.io/badge/React-18.3.1-61DAFB?logo=react)
+![Django](https://img.shields.io/badge/Django-4.2.9-092E20?logo=django)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.5.3-3178C6?logo=typescript)
 
-## How can I edit this code?
+## 🚀 **Tecnologias Utilizadas**
 
-There are several ways of editing your application.
+### **Frontend**
+- React 18.3.1 com TypeScript
+- Vite para build e desenvolvimento
+- Tailwind CSS para estilização
+- Shadcn/UI para componentes
+- Zustand para gerenciamento de estado
+- React Router para navegação
 
-**Use Lovable**
+### **Backend**
+- Django 4.2.9 com Django REST Framework
+- Autenticação JWT
+- PostgreSQL/MySQL para banco de dados
+- CORS configurado para integração
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/4f6b419d-669c-46f0-a77b-b2f7756d6690) and start prompting.
+## 🏗️ **Estrutura do Projeto**
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+equipa-uni-hub/
+├── src/                    # Frontend React
+│   ├── components/         # Componentes reutilizáveis
+│   ├── pages/             # Páginas da aplicação
+│   ├── lib/               # Utilitários e configurações
+│   ├── contexts/          # Contextos React
+│   └── types/             # Definições TypeScript
+├── backend/               # Backend Django
+│   ├── equipahub/         # Configuração principal
+│   ├── accounts/          # App de usuários
+│   ├── equipment/         # App de equipamentos
+│   ├── loans/             # App de empréstimos
+│   └── reservations/      # App de reservas
+└── docs/                  # Documentação
 ```
 
-**Edit a file directly in GitHub**
+## ⚡ **Desenvolvimento Local**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### **Pré-requisitos**
+- Node.js 18+ 
+- Python 3.9+
+- Yarn ou npm
+- PostgreSQL/MySQL
 
-**Use GitHub Codespaces**
+### **Frontend**
+```bash
+# Instalar dependências
+yarn install
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+# Iniciar desenvolvimento
+yarn dev
 
-## What technologies are used for this project?
+# Build para produção
+yarn build
+```
 
-This project is built with:
+### **Backend**
+```bash
+# Navegar para a pasta backend
+cd backend
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+# Criar ambiente virtual
+python -m venv venv
 
-## How can I deploy this project?
+# Ativar ambiente virtual
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
 
-Simply open [Lovable](https://lovable.dev/projects/4f6b419d-669c-46f0-a77b-b2f7756d6690) and click on Share -> Publish.
+# Instalar dependências
+pip install -r requirements.txt
 
-## Can I connect a custom domain to my Lovable project?
+# Executar migrações
+python manage.py migrate
 
-Yes, you can!
+# Criar dados iniciais
+python manage.py create_initial_data
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+# Iniciar servidor
+python manage.py runserver
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## 🔧 **Configuração**
+
+### **Variáveis de Ambiente**
+
+**Frontend (.env):**
+```env
+VITE_API_BASE_URL=http://localhost:8000/api/v1
+VITE_API_URL=http://localhost:8000/api/v1
+```
+
+**Backend (backend/.env):**
+```env
+SECRET_KEY=sua_chave_secreta_aqui
+DEBUG=True
+DATABASE_URL=sua_url_de_banco_aqui
+ALLOWED_HOSTS=localhost,127.0.0.1
+```
+
+## 🎯 **Funcionalidades**
+
+### **👥 Gestão de Usuários**
+- Autenticação JWT
+- Roles: Coordenador, Secretário, Técnico, Docente
+- Permissões baseadas em papel
+
+### **💻 Gestão de Equipamentos**
+- CRUD completo de equipamentos
+- Status: Disponível, Emprestado, Reservado, Manutenção
+- Categorização por tipo
+- Histórico de uso
+
+### **📋 Empréstimos**
+- Criação e gestão de empréstimos
+- Controle de prazos e atrasos
+- Devoluções automatizadas
+- Notificações
+
+### **📅 Reservas**
+- Sistema de reservas antecipadas
+- Confirmação de reservas
+- Conversão para empréstimos
+- Gestão de filas
+
+### **📊 Relatórios**
+- Dashboard com estatísticas
+- Geração de PDFs
+- Filtros por período
+- Exportação de dados
+
+## 🚀 **Deploy**
+
+### **Frontend (Vercel/Netlify)**
+```bash
+# Build do projeto
+yarn build
+
+# Deploy automático via Git
+```
+
+### **Backend (Railway/Heroku)**
+```bash
+# Configurar variáveis de ambiente
+# Fazer deploy via Git
+```
+
+## 📱 **Credenciais de Teste**
+
+- **Coordenador**: `admin@unihub.com` / `admin123`
+- **Técnico**: `tecnico@unihub.com` / `tecnico123`
+- **Secretária**: `secretaria@unihub.com` / `secretaria123`
+- **Docente**: `ana.santos@unihub.com` / `docente123`
+
+## 🤝 **Contribuição**
+
+1. Fork o projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abra um Pull Request
+
+## 📝 **Licença**
+
+Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+## 📞 **Suporte**
+
+Para suporte técnico ou dúvidas sobre o projeto:
+- Abra uma issue no GitHub
+- Entre em contato com a equipe de desenvolvimento
+
+---
+
+**Desenvolvido com ❤️ para facilitar a gestão de equipamentos universitários**

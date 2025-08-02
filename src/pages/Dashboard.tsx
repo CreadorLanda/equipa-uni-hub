@@ -11,12 +11,73 @@ import {
   Clock,
   TrendingUp
 } from 'lucide-react';
-import { mockDashboardStats, mockLoans } from '@/data/mockData';
 import { useAuth } from '@/contexts/AuthContext';
+import { dashboardAPI, loansAPI } from '@/lib/api';
+import { useEffect, useState } from 'react';
+import { DashboardStats, Loan } from '@/types';
 
 export const Dashboard = () => {
   const { user } = useAuth();
-  const stats = mockDashboardStats;
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentLoans, setRecentLoans] = useState<Loan[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true);
+        
+        // Carrega estatísticas do dashboard
+        const dashboardData = await dashboardAPI.stats();
+        setStats(dashboardData);
+
+        // Carrega empréstimos recentes
+        const loansData = await loansAPI.list({ ordering: '-created_at', page_size: 3 });
+        setRecentLoans(loansData.results || loansData);
+        
+      } catch (error) {
+        console.error('Erro ao carregar dados do dashboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-primary">Dashboard</h1>
+          <p className="text-muted-foreground">Carregando dados...</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1,2,3,4].map(i => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                <div className="h-8 bg-muted rounded w-1/2"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-primary">Dashboard</h1>
+          <p className="text-muted-foreground text-destructive">
+            Erro ao carregar dados. Verifique sua conexão.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -142,25 +203,32 @@ export const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockLoans.slice(0, 3).map((loan) => (
-                <div key={loan.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{loan.equipmentName}</p>
-                    <p className="text-xs text-muted-foreground">{loan.userName}</p>
+              {recentLoans.length > 0 ? (
+                recentLoans.map((loan) => (
+                  <div key={loan.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{loan.equipmentName || loan.equipment_name}</p>
+                      <p className="text-xs text-muted-foreground">{loan.userName || loan.user_name}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={getStatusColor(loan.status)}>
+                        {loan.status}
+                      </Badge>
+                      {loan.status === 'atrasado' && (
+                        <AlertTriangle className="h-4 w-4 text-destructive" />
+                      )}
+                      {loan.status === 'concluido' && (
+                        <CheckCircle className="h-4 w-4 text-success" />
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={getStatusColor(loan.status)}>
-                      {loan.status}
-                    </Badge>
-                    {loan.status === 'atrasado' && (
-                      <AlertTriangle className="h-4 w-4 text-destructive" />
-                    )}
-                    {loan.status === 'concluido' && (
-                      <CheckCircle className="h-4 w-4 text-success" />
-                    )}
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Nenhuma movimentação recente</p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>

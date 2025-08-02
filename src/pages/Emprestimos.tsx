@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,13 +18,13 @@ import {
   Clock,
   HandCoins,
   ArrowLeft,
-  Printer
+  Printer,
+  Loader2
 } from 'lucide-react';
-import { mockLoans, mockEquipments } from '@/data/mockData';
-import { Loan, LoanStatus } from '@/types';
+import { Loan, LoanStatus, Equipment } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePermissions } from '@/hooks/usePermissions';
+import { loansAPI, equipmentAPI } from '@/lib/api';
 
 const statusOptions: { value: LoanStatus; label: string; color: string }[] = [
   { value: 'ativo', label: 'Ativo', color: 'bg-info text-info-foreground' },
@@ -34,15 +34,17 @@ const statusOptions: { value: LoanStatus; label: string; color: string }[] = [
 ];
 
 export const Emprestimos = () => {
-  const [loans, setLoans] = useState<Loan[]>(mockLoans);
+  const [loans, setLoans] = useState<Loan[]>([]);
+  const [availableEquipments, setAvailableEquipments] = useState<Equipment[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showTicketDialog, setShowTicketDialog] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
-  const permissions = usePermissions();
 
   const [formData, setFormData] = useState({
     equipmentId: '',
@@ -51,18 +53,60 @@ export const Emprestimos = () => {
     notes: ''
   });
 
-  const availableEquipments = mockEquipments.filter(eq => eq.status === 'disponivel');
+  // Carrega dados da API
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Carrega empréstimos
+      const loansData = await loansAPI.list();
+      setLoans(loansData.results || loansData);
+      
+      // Carrega equipamentos disponíveis
+      const equipmentData = await equipmentAPI.available();
+      setAvailableEquipments(equipmentData.results || equipmentData);
+      
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+      toast({
+        title: "Erro ao carregar dados",
+        description: "Não foi possível carregar empréstimos e equipamentos.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verificações de permissão
+  const canCreateLoan = () => {
+    return user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role);
+  };
+
+  const canReturnLoan = (loan: Loan) => {
+    // Usuário pode devolver seus próprios empréstimos ou se for técnico/secretário/coordenador
+    return loan.userId === user?.id || 
+           (user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role));
+  };
+
+  const canViewAllLoans = () => {
+    return user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role);
+  };
 
   const filteredLoans = loans.filter(loan => {
-    const matchesSearch = loan.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         loan.equipmentName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (loan.userName || loan.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (loan.equipmentName || loan.equipment_name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || loan.status === statusFilter;
     
     // Filtra empréstimos baseado nas permissões
-    if (permissions.canViewAllLoans) {
-      return matchesSearch && matchesStatus; // Técnico vê todos
+    if (canViewAllLoans()) {
+      return matchesSearch && matchesStatus; // Técnico/secretário/coordenador vê todos
     } else {
-      // Outros perfis só veem próprios empréstimos
+      // Docentes só veem próprios empréstimos
       return matchesSearch && matchesStatus && loan.userId === user?.id;
     }
   });
@@ -82,38 +126,60 @@ export const Emprestimos = () => {
 
   const isOverdue = (loan: Loan) => {
     if (loan.status === 'concluido' || loan.status === 'cancelado') return false;
-    return new Date(loan.expectedReturnDate) < new Date();
+    return new Date(loan.expectedReturnDate || loan.expected_return_date) < new Date();
   };
 
-  const handleNewLoan = (e: React.FormEvent) => {
+  const handleNewLoan = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!canCreateLoan()) {
+      toast({
+        title: "Acesso negado",
+        description: "Você não tem permissão para criar empréstimos.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     const selectedEquipment = availableEquipments.find(eq => eq.id === formData.equipmentId);
     if (!selectedEquipment || !user) return;
 
-    const newLoan: Loan = {
-      id: Date.now().toString(),
-      userId: user.id,
-      userName: user.name,
-      equipmentId: formData.equipmentId,
-      equipmentName: `${selectedEquipment.brand} ${selectedEquipment.model}`,
-      startDate: new Date().toISOString().split('T')[0],
-      expectedReturnDate: formData.expectedReturnDate,
-      status: 'ativo',
-      purpose: formData.purpose,
-      notes: formData.notes
-    };
+    setSubmitting(true);
+    
+    try {
+      const newLoan = await loansAPI.create({
+        user: user.id,
+        equipment: formData.equipmentId,
+        expected_return_date: formData.expectedReturnDate,
+        purpose: formData.purpose,
+        notes: formData.notes
+      });
 
-    setLoans(prev => [...prev, newLoan]);
-    
-    toast({
-      title: "Empréstimo registrado!",
-      description: "O empréstimo foi criado com sucesso.",
-    });
-    
-    resetForm();
-    setSelectedLoan(newLoan);
-    setShowTicketDialog(true);
+      setLoans(prev => [...prev, newLoan]);
+      
+      toast({
+        title: "Empréstimo registrado!",
+        description: "O empréstimo foi criado com sucesso.",
+      });
+      
+      resetForm();
+      setSelectedLoan(newLoan);
+      setShowTicketDialog(true);
+      
+      // Recarrega equipamentos disponíveis
+      const equipmentData = await equipmentAPI.available();
+      setAvailableEquipments(equipmentData.results || equipmentData);
+      
+    } catch (error) {
+      console.error('Erro ao criar empréstimo:', error);
+      toast({
+        title: "Erro ao criar empréstimo",
+        description: "Não foi possível registrar o empréstimo.",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -126,21 +192,49 @@ export const Emprestimos = () => {
     setIsDialogOpen(false);
   };
 
-  const handleReturn = (loan: Loan) => {
-    setLoans(prev => prev.map(l => 
-      l.id === loan.id 
-        ? { 
-            ...l, 
-            status: 'concluido' as LoanStatus,
-            actualReturnDate: new Date().toISOString().split('T')[0]
-          }
-        : l
-    ));
-    
-    toast({
-      title: "Devolução confirmada!",
-      description: "O equipamento foi devolvido com sucesso.",
-    });
+  const handleReturn = async (loan: Loan) => {
+    if (!canReturnLoan(loan)) {
+      toast({
+        title: "Acesso negado",
+        description: "Você não tem permissão para devolver este empréstimo.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await loansAPI.returnEquipment(loan.id, {
+        return_date: new Date().toISOString().split('T')[0],
+        notes: 'Devolvido via sistema'
+      });
+      
+      setLoans(prev => prev.map(l => 
+        l.id === loan.id 
+          ? { 
+              ...l, 
+              status: 'concluido' as LoanStatus,
+              actualReturnDate: new Date().toISOString().split('T')[0]
+            }
+          : l
+      ));
+      
+      toast({
+        title: "Devolução confirmada!",
+        description: "O equipamento foi devolvido com sucesso.",
+      });
+      
+      // Recarrega equipamentos disponíveis
+      const equipmentData = await equipmentAPI.available();
+      setAvailableEquipments(equipmentData.results || equipmentData);
+      
+    } catch (error) {
+      console.error('Erro ao devolver equipamento:', error);
+      toast({
+        title: "Erro na devolução",
+        description: "Não foi possível processar a devolução.",
+        variant: "destructive"
+      });
+    }
   };
 
   const activeLoans = filteredLoans.filter(loan => loan.status === 'ativo' || loan.status === 'atrasado');
@@ -157,10 +251,10 @@ export const Emprestimos = () => {
           </p>
         </div>
         
-        {permissions.canRequestLoans && (
+        {canCreateLoan() && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-gradient-primary">
+              <Button className="bg-gradient-primary" disabled={loading}>
                 <Plus className="w-4 h-4 mr-2" />
                 Novo Empréstimo
               </Button>
@@ -228,11 +322,18 @@ export const Emprestimos = () => {
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={resetForm}>
+                <Button type="button" variant="outline" onClick={resetForm} disabled={submitting}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="bg-gradient-primary">
-                  Registrar Empréstimo
+                <Button type="submit" className="bg-gradient-primary" disabled={submitting}>
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Registrando...
+                    </>
+                  ) : (
+                    'Registrar Empréstimo'
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -332,19 +433,39 @@ export const Emprestimos = () => {
               <CardTitle>Empréstimos Ativos</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Usuário</TableHead>
-                    <TableHead>Equipamento</TableHead>
-                    <TableHead>Data de Início</TableHead>
-                    <TableHead>Data Prevista</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {activeLoans.map((loan) => (
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin mr-2" />
+                  <span>Carregando empréstimos...</span>
+                </div>
+              ) : activeLoans.length === 0 ? (
+                <div className="text-center py-12">
+                  <HandCoins className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-medium mb-2">Nenhum empréstimo ativo</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Não há empréstimos ativos no momento.
+                  </p>
+                  {canCreateLoan() && (
+                    <Button onClick={() => setIsDialogOpen(true)} className="bg-gradient-primary">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Criar Primeiro Empréstimo
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Usuário</TableHead>
+                      <TableHead>Equipamento</TableHead>
+                      <TableHead>Data de Início</TableHead>
+                      <TableHead>Data Prevista</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activeLoans.map((loan) => (
                     <TableRow key={loan.id} className={isOverdue(loan) ? 'bg-destructive/5' : ''}>
                       <TableCell>
                         <div>
@@ -368,22 +489,30 @@ export const Emprestimos = () => {
                         {getStatusBadge(isOverdue(loan) ? 'atrasado' : loan.status)}
                       </TableCell>
                       <TableCell>
-                        {permissions.canConfirmReturns && (
+                        {canReturnLoan(loan) && (loan.status === 'ativo' || loan.status === 'atrasado') && (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleReturn(loan)}
                             className="bg-success text-success-foreground hover:bg-success/90"
+                            title="Confirmar devolução"
                           >
                             <CheckCircle className="w-4 h-4 mr-1" />
                             Devolver
                           </Button>
+                        )}
+                        {(!canReturnLoan(loan) || (loan.status !== 'ativo' && loan.status !== 'atrasado')) && (
+                          <span className="text-sm text-muted-foreground italic">
+                            {loan.status === 'concluido' ? 'Devolvido' : 
+                             loan.status === 'cancelado' ? 'Cancelado' : 'Sem permissão'}
+                          </span>
                         )}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -394,18 +523,32 @@ export const Emprestimos = () => {
               <CardTitle>Empréstimos Concluídos</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Usuário</TableHead>
-                    <TableHead>Equipamento</TableHead>
-                    <TableHead>Data de Início</TableHead>
-                    <TableHead>Data de Devolução</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {completedLoans.map((loan) => (
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin mr-2" />
+                  <span>Carregando empréstimos...</span>
+                </div>
+              ) : completedLoans.length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-medium mb-2">Nenhum empréstimo concluído</h3>
+                  <p className="text-muted-foreground">
+                    Não há empréstimos concluídos para exibir.
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Usuário</TableHead>
+                      <TableHead>Equipamento</TableHead>
+                      <TableHead>Data de Início</TableHead>
+                      <TableHead>Data de Devolução</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {completedLoans.map((loan) => (
                     <TableRow key={loan.id}>
                       <TableCell>
                         <div>
@@ -425,6 +568,7 @@ export const Emprestimos = () => {
                   ))}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -462,12 +606,13 @@ export const Emprestimos = () => {
                       <TableCell>{formatDate(loan.expectedReturnDate)}</TableCell>
                       <TableCell>{getStatusBadge(loan.status)}</TableCell>
                       <TableCell>
-                        {(loan.status === 'ativo' || loan.status === 'atrasado') && permissions.canConfirmReturns && (
+                        {canReturnLoan(loan) && (loan.status === 'ativo' || loan.status === 'atrasado') && (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleReturn(loan)}
                             className="bg-success text-success-foreground hover:bg-success/90"
+                            title="Confirmar devolução"
                           >
                             <CheckCircle className="w-4 h-4 mr-1" />
                             Devolver
