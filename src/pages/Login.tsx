@@ -45,10 +45,10 @@ export const Login = () => {
   };
 
   const demoUsers = [
-    { email: 'tecnico@universidade.edu', role: 'Técnico (Admin)' },
-    { email: 'docente@universidade.edu', role: 'Docente' },
-    { email: 'secretario@universidade.edu', role: 'Secretário' },
-    { email: 'coordenador@universidade.edu', role: 'Coordenador' }
+    { email: 'admin@unihub.com', role: 'Admin/Coordenador', password: 'admin123' },
+    { email: 'tecnico@unihub.com', role: 'Técnico', password: 'tecnico123' },
+    { email: 'secretaria@unihub.com', role: 'Secretaria', password: 'secretaria123' },
+    { email: 'ana.santos@unihub.com', role: 'Docente', password: 'docente123' }
   ];
 
   return (
@@ -125,7 +125,10 @@ export const Login = () => {
                 {demoUsers.map((user, index) => (
                   <button
                     key={index}
-                    onClick={() => setEmail(user.email)}
+                    onClick={() => {
+                      setEmail(user.email);
+                      setPassword(user.password);
+                    }}
                     className="w-full text-left text-xs p-2 hover:bg-background rounded transition-colors"
                   >
                     <span className="font-medium">{user.email}</span>
@@ -134,7 +137,7 @@ export const Login = () => {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Senha para todos os usuários: <strong>123456</strong>
+                Clique em um usuário para preencher o email. Senhas: admin123, tecnico123, secretaria123, docente123
               </p>
             </div>
           </CardContent>
