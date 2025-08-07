@@ -96,9 +96,9 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': config('DB_NAME', default='railway'),
         'USER': config('DB_USER', default='root'),
-        'PASSWORD': config('DB_PASSWORD', default='LUujXxELGmhxsmbGlRszdUiZbhdkUyxY'),
-        'HOST': config('DB_HOST', default='switchback.proxy.rlwy.net'),
-        'PORT': config('DB_PORT', default='35151'),
+        'PASSWORD': config('DB_PASSWORD', default='anLyISNDvGrhYBgtDyYLLKpVgaZAurro'),
+        'HOST': config('DB_HOST', default='shortline.proxy.rlwy.net'),
+        'PORT': config('DB_PORT', default='37520'),
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         },
