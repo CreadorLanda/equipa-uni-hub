@@ -80,4 +80,6 @@ class Equipment(models.Model):
         return self.status == 'disponivel'
     
     def can_be_borrowed(self):
-        return self.status in ['disponivel', 'reservado']
+        # Só é possível emprestar quando o equipamento está disponível
+        # Requisito: se estiver reservado, não pode ser emprestado
+        return self.status == 'disponivel'

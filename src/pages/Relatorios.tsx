@@ -20,7 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { dashboardAPI, equipmentAPI, loansAPI, reservationsAPI } from '@/lib/api';
 import { Loan, Equipment, Reservation, DashboardStats } from '@/types';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 export const Relatorios = () => {
   const { user } = useAuth();
@@ -76,8 +76,20 @@ export const Relatorios = () => {
     return user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
+  const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return '-';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date string:', dateString);
+        return 'Data inválida';
+      }
+      return date.toLocaleDateString('pt-BR');
+    } catch (error) {
+      console.warn('Error formatting date:', dateString, error);
+      return 'Data inválida';
+    }
   };
 
   const generatePDF = async () => {
@@ -119,7 +131,7 @@ export const Relatorios = () => {
           ['Em Manutenção', stats?.maintenanceEquipments || equipments.filter(e => e.status === 'manutencao').length]
         ];
 
-        (doc as any).autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Categoria', 'Quantidade']],
           body: equipmentStats,
@@ -143,7 +155,7 @@ export const Relatorios = () => {
           ['Concluídos', loans.filter(l => l.status === 'concluido').length]
         ];
 
-        (doc as any).autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Categoria', 'Quantidade']],
           body: loanStats,
@@ -167,7 +179,7 @@ export const Relatorios = () => {
           ['Canceladas', reservations.filter(r => r.status === 'cancelada').length]
         ];
 
-        (doc as any).autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Categoria', 'Quantidade']],
           body: reservationStats,
@@ -198,6 +210,16 @@ export const Relatorios = () => {
   };
 
   const handleExportPDF = () => {
+    // Só gera relatório quando tiver empréstimos (independente do tipo selecionado)
+    const { filteredLoans } = getFilteredData();
+    if (filteredLoans.length === 0) {
+      toast({
+        title: 'Nada para exportar',
+        description: 'Não há empréstimos no período selecionado para gerar o PDF.',
+        variant: 'destructive'
+      });
+      return;
+    }
     generatePDF();
   };
 
@@ -211,9 +233,44 @@ export const Relatorios = () => {
       return;
     }
 
+    // Só gera relatório quando tiver empréstimos
+    const { filteredLoans } = getFilteredData();
+    if (filteredLoans.length === 0) {
+      toast({
+        title: 'Nada para exportar',
+        description: 'Não há empréstimos no período selecionado para exportar.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Exportação simples para CSV (compatível com Excel)
+    const headers = ['ID', 'Usuário', 'Equipamento', 'Data de Início', 'Data Prevista', 'Status', 'Finalidade'];
+    const rows = filteredLoans.map((loan) => [
+      loan.id,
+      loan.userName || loan.user_name,
+      loan.equipmentName || loan.equipment_name,
+      new Date(loan.startDate || loan.start_date).toLocaleDateString('pt-BR'),
+      new Date(loan.expectedReturnDate || loan.expected_return_date).toLocaleDateString('pt-BR'),
+      loan.status,
+      (loan.purpose || '').replace(/\n|\r/g, ' ')
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';'))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `relatorio_emprestimos_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+
     toast({
-      title: "Funcionalidade em desenvolvimento",
-      description: "A exportação para Excel será implementada em breve.",
+      title: 'Exportado com sucesso!',
+      description: 'O arquivo CSV foi gerado e baixado.',
     });
   };
 
@@ -349,13 +406,7 @@ export const Relatorios = () => {
               />
             </div>
             
-            <div className="space-y-2">
-              <Label>&nbsp;</Label>
-              <Button className="w-full bg-gradient-primary">
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Gerar Relatório
-              </Button>
-            </div>
+            {/* Botão removido a pedido: Gerar Relatório */}
           </div>
         </CardContent>
       </Card>
@@ -608,26 +659,41 @@ export const Relatorios = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockReservations.map((reservation) => (
-                    <TableRow key={reservation.id}>
-                      <TableCell className="font-mono">#{reservation.id}</TableCell>
-                      <TableCell>{reservation.userName}</TableCell>
-                      <TableCell>{reservation.equipmentName}</TableCell>
-                      <TableCell>{formatDate(reservation.reservationDate)}</TableCell>
-                      <TableCell>{formatDate(reservation.expectedPickupDate)}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          reservation.status === 'ativa' ? 'bg-info text-info-foreground' :
-                          reservation.status === 'confirmada' ? 'bg-success text-success-foreground' :
-                          reservation.status === 'cancelada' ? 'bg-destructive text-destructive-foreground' :
-                          'bg-muted text-muted-foreground'
-                        }`}>
-                          {reservation.status}
-                        </span>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                        <span>Carregando reservas...</span>
                       </TableCell>
-                      <TableCell className="max-w-xs truncate">{reservation.purpose}</TableCell>
                     </TableRow>
-                  ))}
+                  ) : getFilteredData().filteredReservations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        Nenhuma reserva encontrada no período selecionado
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    getFilteredData().filteredReservations.map((reservation) => (
+                      <TableRow key={reservation.id}>
+                        <TableCell className="font-mono">#{reservation.id}</TableCell>
+                        <TableCell>{reservation.userName || reservation.user_name}</TableCell>
+                        <TableCell>{reservation.equipmentName || reservation.equipment_name}</TableCell>
+                        <TableCell>{formatDate(reservation.reservationDate || reservation.reservation_date)}</TableCell>
+                        <TableCell>{formatDate(reservation.expectedPickupDate || reservation.expected_pickup_date)}</TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            reservation.status === 'ativa' ? 'bg-info text-info-foreground' :
+                            reservation.status === 'confirmada' ? 'bg-success text-success-foreground' :
+                            reservation.status === 'cancelada' ? 'bg-destructive text-destructive-foreground' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {reservation.status}
+                          </span>
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">{reservation.purpose}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

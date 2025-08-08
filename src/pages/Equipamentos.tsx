@@ -81,11 +81,13 @@ export const Equipamentos = () => {
 
   // Verifica permissões do usuário
   const canManageEquipment = () => {
-    return user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role);
+    // Requisito: somente técnicos podem cadastrar, editar e remover
+    return user?.role === 'tecnico';
   };
 
   const canDeleteEquipment = () => {
-    return user?.role === 'coordenador';
+    // Requisito: somente técnicos podem remover
+    return user?.role === 'tecnico';
   };
 
   const [formData, setFormData] = useState({

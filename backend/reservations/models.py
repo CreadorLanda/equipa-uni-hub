@@ -1,6 +1,13 @@
 from django.db import models
 from django.utils import timezone
 from django.conf import settings
+
+
+def get_current_date():
+    """Retorna a data atual (sem hora) para usar como default"""
+    return timezone.now().date()
+
+
 from datetime import timedelta
 
 
@@ -29,7 +36,7 @@ class Reservation(models.Model):
         verbose_name='Equipamento'
     )
     reservation_date = models.DateField(
-        default=timezone.now,
+        default=get_current_date,
         verbose_name='Data da Reserva'
     )
     expected_pickup_date = models.DateField(

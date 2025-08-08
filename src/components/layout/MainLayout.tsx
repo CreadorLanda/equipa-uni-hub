@@ -25,7 +25,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   Sistema de Gestão de Equipamentos
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  Universidade Federal
+                  Universidade Metodista de Angola
                 </p>
               </div>
             </div>

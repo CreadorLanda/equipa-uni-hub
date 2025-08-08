@@ -15,6 +15,11 @@ export const api = {
   request: async <T = any>(endpoint: string, options: RequestInit = {}): Promise<T> => {
     const token = localStorage.getItem('auth_token');
     
+    console.log(`API Request: ${options.method || 'GET'} ${endpoint}`, {
+      hasToken: !!token,
+      tokenPreview: token ? `${token.substring(0, 10)}...` : 'none'
+    });
+    
     const config: RequestInit = {
       ...options,
       headers: {
@@ -29,7 +34,14 @@ export const api = {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
+        console.error('API Error Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: `${API_BASE_URL}${endpoint}`,
+          method: config.method || 'GET',
+          errorData
+        });
+        throw new Error(errorData.error || errorData.message || JSON.stringify(errorData) || `HTTP error! status: ${response.status}`);
       }
       
       // Se não há conteúdo, retorna objeto vazio

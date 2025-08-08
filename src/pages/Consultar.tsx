@@ -107,8 +107,20 @@ export const Consultar = () => {
     return currentLoan?.userName || null;
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
+  const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return '-';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date string:', dateString);
+        return 'Data inválida';
+      }
+      return date.toLocaleDateString('pt-BR');
+    } catch (error) {
+      console.warn('Error formatting date:', dateString, error);
+      return 'Data inválida';
+    }
   };
 
   const clearFilters = () => {
@@ -321,7 +333,7 @@ export const Consultar = () => {
                         )}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {formatDate(equipment.acquisitionDate)}
+                        {formatDate(equipment.acquisitionDate || equipment.acquisition_date)}
                       </TableCell>
                     </TableRow>
                   );

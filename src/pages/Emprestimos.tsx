@@ -46,6 +46,13 @@ export const Emprestimos = () => {
   const { toast } = useToast();
   const { user } = useAuth();
 
+  // Debug logs
+  console.log('=== EMPRESTIMOS PAGE DEBUG ===');
+  console.log('User:', user);
+  console.log('Loans count:', loans.length);
+  console.log('Available equipments count:', availableEquipments.length);
+  console.log('Loading:', loading);
+
   const [formData, setFormData] = useState({
     equipmentId: '',
     expectedReturnDate: '',
@@ -62,12 +69,16 @@ export const Emprestimos = () => {
     try {
       setLoading(true);
       
+      console.log('Carregando dados de empréstimos...');
+      
       // Carrega empréstimos
       const loansData = await loansAPI.list();
+      console.log('Loans data received:', loansData);
       setLoans(loansData.results || loansData);
       
       // Carrega equipamentos disponíveis
       const equipmentData = await equipmentAPI.available();
+      console.log('Equipment data received:', equipmentData);
       setAvailableEquipments(equipmentData.results || equipmentData);
       
     } catch (error) {
@@ -98,9 +109,21 @@ export const Emprestimos = () => {
   };
 
   const filteredLoans = loans.filter(loan => {
-    const matchesSearch = (loan.userName || loan.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (loan.equipmentName || loan.equipment_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const userName = loan.userName || loan.user_name || '';
+    const equipmentName = loan.equipmentName || loan.equipment_name || '';
+    const matchesSearch = userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         equipmentName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || loan.status === statusFilter;
+    
+    console.log('Filtering loan:', {
+      loanId: loan.id,
+      userName,
+      equipmentName,
+      userId: loan.userId,
+      currentUser: user?.id,
+      matchesSearch,
+      matchesStatus
+    });
     
     // Filtra empréstimos baseado nas permissões
     if (canViewAllLoans()) {
@@ -120,8 +143,20 @@ export const Emprestimos = () => {
     );
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
+  const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return '-';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date string:', dateString);
+        return 'Data inválida';
+      }
+      return date.toLocaleDateString('pt-BR');
+    } catch (error) {
+      console.warn('Error formatting date:', dateString, error);
+      return 'Data inválida';
+    }
   };
 
   const isOverdue = (loan: Loan) => {
@@ -141,7 +176,7 @@ export const Emprestimos = () => {
       return;
     }
     
-    const selectedEquipment = availableEquipments.find(eq => eq.id === formData.equipmentId);
+    const selectedEquipment = availableEquipments.find(eq => String(eq.id) === String(formData.equipmentId));
     if (!selectedEquipment || !user) return;
 
     setSubmitting(true);
@@ -149,7 +184,7 @@ export const Emprestimos = () => {
     try {
       const newLoan = await loansAPI.create({
         user: user.id,
-        equipment: formData.equipmentId,
+        equipment: selectedEquipment.id,
         expected_return_date: formData.expectedReturnDate,
         purpose: formData.purpose,
         notes: formData.notes
@@ -172,9 +207,20 @@ export const Emprestimos = () => {
       
     } catch (error) {
       console.error('Erro ao criar empréstimo:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      
+      let description = "Não foi possível registrar o empréstimo.";
+      if (errorMessage.includes('Data de devolução deve ser posterior')) {
+        description = "A data de devolução deve ser posterior à data de hoje.";
+      } else if (errorMessage.includes('equipamento não está disponível')) {
+        description = "O equipamento selecionado não está mais disponível.";
+      } else if (errorMessage.includes('400')) {
+        description = "Dados inválidos. Verifique se todos os campos estão preenchidos corretamente.";
+      }
+      
       toast({
         title: "Erro ao criar empréstimo",
-        description: "Não foi possível registrar o empréstimo.",
+        description,
         variant: "destructive"
       });
     } finally {
@@ -280,8 +326,8 @@ export const Emprestimos = () => {
                   </SelectTrigger>
                   <SelectContent>
                     {availableEquipments.map(equipment => (
-                      <SelectItem key={equipment.id} value={equipment.id}>
-                        {equipment.brand} {equipment.model} - {equipment.serialNumber}
+                      <SelectItem key={equipment.id} value={String(equipment.id)}>
+                        {equipment.brand} {equipment.model} - {(equipment as any).serialNumber || (equipment as any).serial_number}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -295,7 +341,7 @@ export const Emprestimos = () => {
                   type="date"
                   value={formData.expectedReturnDate}
                   onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnDate: e.target.value }))}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
                   required
                 />
               </div>
@@ -469,17 +515,17 @@ export const Emprestimos = () => {
                     <TableRow key={loan.id} className={isOverdue(loan) ? 'bg-destructive/5' : ''}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{loan.userName}</p>
+                          <p className="font-medium">{loan.userName || loan.user_name}</p>
                           <p className="text-sm text-muted-foreground">{loan.purpose}</p>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <p className="font-medium">{loan.equipmentName}</p>
+                        <p className="font-medium">{loan.equipmentName || loan.equipment_name}</p>
                       </TableCell>
-                      <TableCell>{formatDate(loan.startDate)}</TableCell>
+                      <TableCell>{formatDate(loan.startDate || loan.start_date)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {formatDate(loan.expectedReturnDate)}
+                          {formatDate(loan.expectedReturnDate || loan.expected_return_date)}
                           {isOverdue(loan) && (
                             <AlertTriangle className="w-4 h-4 text-destructive" />
                           )}
@@ -552,16 +598,16 @@ export const Emprestimos = () => {
                     <TableRow key={loan.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{loan.userName}</p>
+                          <p className="font-medium">{loan.userName || loan.user_name}</p>
                           <p className="text-sm text-muted-foreground">{loan.purpose}</p>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <p className="font-medium">{loan.equipmentName}</p>
+                        <p className="font-medium">{loan.equipmentName || loan.equipment_name}</p>
                       </TableCell>
-                      <TableCell>{formatDate(loan.startDate)}</TableCell>
+                      <TableCell>{formatDate(loan.startDate || loan.start_date)}</TableCell>
                       <TableCell>
-                        {loan.actualReturnDate ? formatDate(loan.actualReturnDate) : '-'}
+                        {formatDate(loan.actualReturnDate || loan.actual_return_date)}
                       </TableCell>
                       <TableCell>{getStatusBadge(loan.status)}</TableCell>
                     </TableRow>
@@ -595,15 +641,15 @@ export const Emprestimos = () => {
                     <TableRow key={loan.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{loan.userName}</p>
+                          <p className="font-medium">{loan.userName || loan.user_name}</p>
                           <p className="text-sm text-muted-foreground">{loan.purpose}</p>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <p className="font-medium">{loan.equipmentName}</p>
+                        <p className="font-medium">{loan.equipmentName || loan.equipment_name}</p>
                       </TableCell>
-                      <TableCell>{formatDate(loan.startDate)}</TableCell>
-                      <TableCell>{formatDate(loan.expectedReturnDate)}</TableCell>
+                      <TableCell>{formatDate(loan.startDate || loan.start_date)}</TableCell>
+                      <TableCell>{formatDate(loan.expectedReturnDate || loan.expected_return_date)}</TableCell>
                       <TableCell>{getStatusBadge(loan.status)}</TableCell>
                       <TableCell>
                         {canReturnLoan(loan) && (loan.status === 'ativo' || loan.status === 'atrasado') && (
@@ -642,7 +688,7 @@ export const Emprestimos = () => {
             <div className="space-y-4 p-4 border rounded-lg bg-muted">
               <div className="text-center">
                 <h3 className="font-bold">Sistema de Empréstimos</h3>
-                <p className="text-sm text-muted-foreground">Universidade Federal</p>
+                <p className="text-sm text-muted-foreground">Universidade Metodista de Angola</p>
               </div>
               
               <div className="space-y-2 text-sm">
@@ -652,19 +698,19 @@ export const Emprestimos = () => {
                 </div>
                 <div className="flex justify-between">
                   <span>Usuário:</span>
-                  <span>{selectedLoan.userName}</span>
+                  <span>{selectedLoan.userName || selectedLoan.user_name}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Equipamento:</span>
-                  <span>{selectedLoan.equipmentName}</span>
+                  <span>{selectedLoan.equipmentName || selectedLoan.equipment_name}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Data de Início:</span>
-                  <span>{formatDate(selectedLoan.startDate)}</span>
+                  <span>{formatDate(selectedLoan.startDate || selectedLoan.start_date)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Data de Devolução:</span>
-                  <span>{formatDate(selectedLoan.expectedReturnDate)}</span>
+                  <span>{formatDate(selectedLoan.expectedReturnDate || selectedLoan.expected_return_date)}</span>
                 </div>
               </div>
             </div>

@@ -3,6 +3,11 @@ from django.utils import timezone
 from django.conf import settings
 
 
+def get_current_date():
+    """Retorna a data atual (sem hora) para usar como default"""
+    return timezone.now().date()
+
+
 class Loan(models.Model):
     """
     Modelo de empréstimo baseado no interface TypeScript Loan
@@ -28,7 +33,7 @@ class Loan(models.Model):
         verbose_name='Equipamento'
     )
     start_date = models.DateField(
-        default=timezone.now,
+        default=get_current_date,
         verbose_name='Data de Início'
     )
     expected_return_date = models.DateField(

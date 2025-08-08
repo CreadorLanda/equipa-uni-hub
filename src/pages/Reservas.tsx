@@ -40,6 +40,13 @@ export const Reservas = () => {
   const { toast } = useToast();
   const { user } = useAuth();
 
+  // Debug logs
+  console.log('=== RESERVAS PAGE DEBUG ===');
+  console.log('User:', user);
+  console.log('Reservations count:', reservations.length);
+  console.log('Available equipments count:', availableEquipments.length);
+  console.log('Loading:', loading);
+
   const [formData, setFormData] = useState({
     equipmentId: '',
     expectedPickupDate: '',
@@ -118,8 +125,20 @@ export const Reservas = () => {
     );
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
+  const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return '-';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date string:', dateString);
+        return 'Data inválida';
+      }
+      return date.toLocaleDateString('pt-BR');
+    } catch (error) {
+      console.warn('Error formatting date:', dateString, error);
+      return 'Data inválida';
+    }
   };
 
   const handleNewReservation = async (e: React.FormEvent) => {
@@ -134,15 +153,22 @@ export const Reservas = () => {
       return;
     }
     
-    const selectedEquipment = availableEquipments.find(eq => eq.id === formData.equipmentId);
-    if (!selectedEquipment || !user) return;
+    const selectedEquipment = availableEquipments.find(eq => String(eq.id) === String(formData.equipmentId));
+    if (!selectedEquipment || !user) {
+      toast({
+        title: "Seleção inválida",
+        description: "Selecione um equipamento disponível para reservar.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setSubmitting(true);
     
     try {
       const newReservation = await reservationsAPI.create({
         user: user.id,
-        equipment: formData.equipmentId,
+        equipment: selectedEquipment.id,
         expected_pickup_date: formData.expectedPickupDate,
         purpose: formData.purpose,
         notes: formData.notes
@@ -163,9 +189,16 @@ export const Reservas = () => {
       
     } catch (error) {
       console.error('Erro ao criar reserva:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      let description = "Não foi possível registrar a reserva.";
+      if (errorMessage.toLowerCase().includes('não está disponível')) {
+        description = "O equipamento selecionado não está disponível para reserva.";
+      } else if (errorMessage.includes('400')) {
+        description = "Dados inválidos. Verifique os campos do formulário.";
+      }
       toast({
         title: "Erro ao criar reserva",
-        description: "Não foi possível registrar a reserva.",
+        description,
         variant: "destructive"
       });
     } finally {
@@ -292,7 +325,7 @@ export const Reservas = () => {
             <form onSubmit={handleNewReservation} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="equipment">Equipamento</Label>
-                <Select 
+                 <Select 
                   value={formData.equipmentId} 
                   onValueChange={(value) => setFormData(prev => ({ ...prev, equipmentId: value }))}
                   required
@@ -300,11 +333,11 @@ export const Reservas = () => {
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um equipamento" />
                   </SelectTrigger>
-                  <SelectContent>
+                   <SelectContent>
                     {availableEquipments.map(equipment => (
-                      <SelectItem key={equipment.id} value={equipment.id}>
+                      <SelectItem key={equipment.id} value={String(equipment.id)}>
                         <div className="flex items-center justify-between w-full">
-                          <span>{equipment.brand} {equipment.model} - {equipment.serialNumber}</span>
+                          <span>{equipment.brand} {equipment.model} - {(equipment as any).serialNumber || (equipment as any).serial_number}</span>
                           <Badge variant="outline" className="ml-2">
                             {equipment.status}
                           </Badge>
@@ -490,15 +523,15 @@ export const Reservas = () => {
                 <TableRow key={reservation.id}>
                   <TableCell>
                     <div>
-                      <p className="font-medium">{reservation.userName}</p>
+                      <p className="font-medium">{reservation.userName || reservation.user_name}</p>
                       <p className="text-sm text-muted-foreground">{reservation.purpose}</p>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <p className="font-medium">{reservation.equipmentName}</p>
+                    <p className="font-medium">{reservation.equipmentName || reservation.equipment_name}</p>
                   </TableCell>
-                  <TableCell>{formatDate(reservation.reservationDate)}</TableCell>
-                  <TableCell>{formatDate(reservation.expectedPickupDate)}</TableCell>
+                  <TableCell>{formatDate(reservation.reservationDate || reservation.reservation_date)}</TableCell>
+                  <TableCell>{formatDate(reservation.expectedPickupDate || reservation.expected_pickup_date)}</TableCell>
                   <TableCell>{getStatusBadge(reservation.status)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">

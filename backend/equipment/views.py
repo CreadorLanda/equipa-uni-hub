@@ -55,8 +55,8 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         """
         Personaliza a criação de equipamento
         """
-        # Apenas técnicos, secretários e coordenadores podem criar equipamentos
-        if self.request.user.role not in ['tecnico', 'secretario', 'coordenador']:
+        # Apenas técnicos podem criar equipamentos
+        if self.request.user.role != 'tecnico':
             raise permissions.PermissionDenied(
                 'Você não tem permissão para criar equipamentos.'
             )
@@ -66,8 +66,8 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         """
         Personaliza a atualização de equipamento
         """
-        # Apenas técnicos, secretários e coordenadores podem editar equipamentos
-        if self.request.user.role not in ['tecnico', 'secretario', 'coordenador']:
+        # Apenas técnicos podem editar equipamentos
+        if self.request.user.role != 'tecnico':
             raise permissions.PermissionDenied(
                 'Você não tem permissão para editar equipamentos.'
             )
@@ -77,10 +77,10 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         """
         Personaliza a exclusão de equipamento
         """
-        # Apenas coordenadores podem excluir equipamentos
-        if self.request.user.role != 'coordenador':
+        # Apenas técnicos podem excluir equipamentos
+        if self.request.user.role != 'tecnico':
             raise permissions.PermissionDenied(
-                'Apenas coordenadores podem excluir equipamentos.'
+                'Apenas técnicos podem excluir equipamentos.'
             )
         
         # Verifica se o equipamento está emprestado ou reservado
