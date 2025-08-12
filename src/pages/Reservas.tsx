@@ -177,8 +177,8 @@ export const Reservas = () => {
       setReservations(prev => [...prev, newReservation]);
       
       toast({
-        title: "Reserva criada!",
-        description: "Sua reserva foi registrada com sucesso.",
+        title: "Reserva efectuada!",
+        description: "Sua reserva foi efectuada com sucesso.",
       });
       
       resetForm();
@@ -389,10 +389,10 @@ export const Reservas = () => {
                   {submitting ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Criando...
+                      Reservando...
                     </>
                   ) : (
-                    'Criar Reserva'
+                    'Reservar / Finalizar Reserva'
                   )}
                 </Button>
               </DialogFooter>

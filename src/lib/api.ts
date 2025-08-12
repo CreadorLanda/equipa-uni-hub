@@ -141,6 +141,9 @@ export const equipmentAPI = {
     
   update: (id: string, data: any) => 
     api.put(`/equipment/${id}/`, data),
+  
+  partialUpdate: (id: string, data: any) => 
+    api.patch(`/equipment/${id}/`, data),
     
   delete: (id: string) => 
     api.delete(`/equipment/${id}/`),

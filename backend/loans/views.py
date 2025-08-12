@@ -43,8 +43,8 @@ class LoanViewSet(viewsets.ModelViewSet):
         """
         queryset = Loan.objects.select_related('user', 'equipment').all()
         
-        # Docentes só podem ver seus próprios empréstimos
-        if self.request.user.role == 'docente':
+        # Apenas técnico e coordenador veem todos. Demais (docente, secretário) veem apenas os próprios
+        if self.request.user.role not in ['tecnico', 'coordenador']:
             queryset = queryset.filter(user=self.request.user)
         
         # Filtro por status de atraso

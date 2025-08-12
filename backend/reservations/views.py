@@ -49,8 +49,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
         """
         queryset = Reservation.objects.select_related('user', 'equipment').all()
         
-        # Docentes só podem ver suas próprias reservas
-        if self.request.user.role == 'docente':
+        # Apenas técnico e coordenador veem todas. Demais (docente, secretário) veem apenas as próprias
+        if self.request.user.role not in ['tecnico', 'coordenador']:
             queryset = queryset.filter(user=self.request.user)
         
         # Filtro por reservas expirando em breve

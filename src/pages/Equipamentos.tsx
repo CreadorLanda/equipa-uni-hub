@@ -242,8 +242,8 @@ export const Equipamentos = () => {
       if (newStatus === 'disponivel') {
         await equipmentAPI.setAvailable(equipment.id);
       } else {
-        // Para inativar, atualizamos diretamente
-        await equipmentAPI.update(equipment.id, { status: 'inativo' });
+        // Para inativar, usar PATCH para enviar somente o campo necessário
+        await equipmentAPI.partialUpdate(equipment.id, { status: 'inativo' });
       }
       
       setEquipments(prev => prev.map(eq => 
