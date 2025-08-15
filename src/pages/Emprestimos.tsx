@@ -55,6 +55,7 @@ export const Emprestimos = () => {
 
   const [formData, setFormData] = useState({
     equipmentId: '',
+    startTime: new Date().toTimeString().slice(0, 5), // Hora atual no formato HH:MM
     expectedReturnDate: '',
     purpose: '',
     notes: ''
@@ -185,6 +186,7 @@ export const Emprestimos = () => {
       const newLoan = await loansAPI.create({
         user: user.id,
         equipment: selectedEquipment.id,
+        start_time: formData.startTime,
         expected_return_date: formData.expectedReturnDate,
         purpose: formData.purpose,
         notes: formData.notes
@@ -231,6 +233,7 @@ export const Emprestimos = () => {
   const resetForm = () => {
     setFormData({
       equipmentId: '',
+      startTime: new Date().toTimeString().slice(0, 5), // Hora atual no formato HH:MM
       expectedReturnDate: '',
       purpose: '',
       notes: ''
@@ -332,6 +335,17 @@ export const Emprestimos = () => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="startTime">Hora de Início</Label>
+                <Input
+                  id="startTime"
+                  type="time"
+                  value={formData.startTime}
+                  onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                  required
+                />
               </div>
 
               <div className="space-y-2">
@@ -504,7 +518,7 @@ export const Emprestimos = () => {
                     <TableRow>
                       <TableHead>Usuário</TableHead>
                       <TableHead>Equipamento</TableHead>
-                      <TableHead>Data de Início</TableHead>
+                      <TableHead>Data/Hora de Início</TableHead>
                       <TableHead>Data Prevista</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Ações</TableHead>
@@ -522,7 +536,14 @@ export const Emprestimos = () => {
                       <TableCell>
                         <p className="font-medium">{loan.equipmentName || loan.equipment_name}</p>
                       </TableCell>
-                      <TableCell>{formatDate(loan.startDate || loan.start_date)}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{formatDate(loan.startDate || loan.start_date)}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {(loan.startTime || loan.start_time) ? (loan.startTime || loan.start_time) : 'Hora não definida'}
+                          </p>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {formatDate(loan.expectedReturnDate || loan.expected_return_date)}
@@ -588,7 +609,7 @@ export const Emprestimos = () => {
                     <TableRow>
                       <TableHead>Usuário</TableHead>
                       <TableHead>Equipamento</TableHead>
-                      <TableHead>Data de Início</TableHead>
+                      <TableHead>Data/Hora de Início</TableHead>
                       <TableHead>Data de Devolução</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
@@ -605,7 +626,14 @@ export const Emprestimos = () => {
                       <TableCell>
                         <p className="font-medium">{loan.equipmentName || loan.equipment_name}</p>
                       </TableCell>
-                      <TableCell>{formatDate(loan.startDate || loan.start_date)}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{formatDate(loan.startDate || loan.start_date)}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {(loan.startTime || loan.start_time) ? (loan.startTime || loan.start_time) : 'Hora não definida'}
+                          </p>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         {formatDate(loan.actualReturnDate || loan.actual_return_date)}
                       </TableCell>
@@ -630,7 +658,7 @@ export const Emprestimos = () => {
                   <TableRow>
                     <TableHead>Usuário</TableHead>
                     <TableHead>Equipamento</TableHead>
-                    <TableHead>Data de Início</TableHead>
+                    <TableHead>Data/Hora de Início</TableHead>
                     <TableHead>Data Prevista</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Ações</TableHead>
@@ -648,7 +676,14 @@ export const Emprestimos = () => {
                       <TableCell>
                         <p className="font-medium">{loan.equipmentName || loan.equipment_name}</p>
                       </TableCell>
-                      <TableCell>{formatDate(loan.startDate || loan.start_date)}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{formatDate(loan.startDate || loan.start_date)}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {(loan.startTime || loan.start_time) ? (loan.startTime || loan.start_time) : 'Hora não definida'}
+                          </p>
+                        </div>
+                      </TableCell>
                       <TableCell>{formatDate(loan.expectedReturnDate || loan.expected_return_date)}</TableCell>
                       <TableCell>{getStatusBadge(loan.status)}</TableCell>
                       <TableCell>
@@ -707,6 +742,10 @@ export const Emprestimos = () => {
                 <div className="flex justify-between">
                   <span>Data de Início:</span>
                   <span>{formatDate(selectedLoan.startDate || selectedLoan.start_date)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Hora de Início:</span>
+                  <span>{(selectedLoan.startTime || selectedLoan.start_time) ? (selectedLoan.startTime || selectedLoan.start_time) : 'Hora não definida'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Data de Devolução:</span>

@@ -237,6 +237,31 @@ export const reservationsAPI = {
     api.get('/reservations/stats/'),
 };
 
+export const notificationsAPI = {
+  list: (params?: Record<string, any>) => {
+    const queryParams = params ? new URLSearchParams(params).toString() : '';
+    return api.get(`/notifications/${queryParams ? '?' + queryParams : ''}`);
+  },
+  
+  get: (id: string) => 
+    api.get(`/notifications/${id}/`),
+    
+  create: (data: any) => 
+    api.post('/notifications/', data),
+    
+  update: (id: string, data: any) => 
+    api.put(`/notifications/${id}/`, data),
+    
+  delete: (id: string) => 
+    api.delete(`/notifications/${id}/`),
+    
+  markAsRead: (id: string) => 
+    api.post(`/notifications/${id}/mark_read/`),
+    
+  markAllAsRead: () => 
+    api.post('/notifications/mark_all_read/'),
+};
+
 export const dashboardAPI = {
   stats: () => 
     api.get('/dashboard/stats/'),

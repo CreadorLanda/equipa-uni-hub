@@ -31,11 +31,14 @@ export interface Loan {
   equipmentId: string;
   equipmentName: string;
   startDate: string;
+  startTime: string;
   expectedReturnDate: string;
   actualReturnDate?: string;
   status: LoanStatus;
   purpose: string;
   notes?: string;
+  createdBy?: string;
+  createdByUserName?: string;
 }
 
 export type LoanStatus = 'ativo' | 'atrasado' | 'concluido' | 'cancelado';
@@ -54,6 +57,17 @@ export interface Reservation {
 }
 
 export type ReservationStatus = 'ativa' | 'confirmada' | 'cancelada' | 'expirada';
+
+export interface Notification {
+  id: string;
+  type: 'alert' | 'warning' | 'success' | 'info';
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+  actionRequired: boolean;
+  createdAt: string;
+}
 
 export interface DashboardStats {
   totalEquipments: number;

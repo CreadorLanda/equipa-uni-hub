@@ -35,6 +35,7 @@ urlpatterns = [
     path('api/v1/', include('equipment.urls')),
     path('api/v1/', include('loans.urls')),
     path('api/v1/', include('reservations.urls')),
+    path('api/v1/', include('notifications.urls')),
     path('api/v1/dashboard/stats/', dashboard_stats, name='dashboard-stats'),
 ]
 

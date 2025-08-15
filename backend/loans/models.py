@@ -8,6 +8,11 @@ def get_current_date():
     return timezone.now().date()
 
 
+def get_current_time():
+    """Retorna a hora atual para usar como default"""
+    return timezone.now().time()
+
+
 class Loan(models.Model):
     """
     Modelo de empréstimo baseado no interface TypeScript Loan
@@ -35,6 +40,10 @@ class Loan(models.Model):
     start_date = models.DateField(
         default=get_current_date,
         verbose_name='Data de Início'
+    )
+    start_time = models.TimeField(
+        default=get_current_time,
+        verbose_name='Hora de Início'
     )
     expected_return_date = models.DateField(
         verbose_name='Data Prevista de Devolução'

@@ -13,6 +13,7 @@ class LoanSerializer(serializers.ModelSerializer):
     equipment_name = serializers.ReadOnlyField()
     is_overdue = serializers.ReadOnlyField()
     days_overdue = serializers.ReadOnlyField()
+    created_by_user_name = serializers.ReadOnlyField(source='created_by.name')
     
     # Relacionamentos aninhados para leitura
     user_detail = UserPublicSerializer(source='user', read_only=True)
@@ -21,9 +22,9 @@ class LoanSerializer(serializers.ModelSerializer):
     class Meta:
         model = Loan
         fields = [
-            'id', 'user', 'equipment', 'start_date', 'expected_return_date',
+            'id', 'user', 'equipment', 'start_date', 'start_time', 'expected_return_date',
             'actual_return_date', 'status', 'purpose', 'notes',
-            'created_at', 'updated_at', 'created_by',
+            'created_at', 'updated_at', 'created_by', 'created_by_user_name',
             'user_name', 'equipment_name', 'is_overdue', 'days_overdue',
             'user_detail', 'equipment_detail'
         ]
@@ -76,7 +77,7 @@ class LoanListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Loan
         fields = [
-            'id', 'user_name', 'equipment_name', 'start_date',
+            'id', 'user_name', 'equipment_name', 'start_date', 'start_time',
             'expected_return_date', 'status', 'is_overdue', 'days_overdue'
         ]
 

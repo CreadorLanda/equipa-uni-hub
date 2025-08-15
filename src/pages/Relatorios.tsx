@@ -245,12 +245,13 @@ export const Relatorios = () => {
     }
 
     // Exportação simples para CSV (compatível com Excel)
-    const headers = ['ID', 'Usuário', 'Equipamento', 'Data de Início', 'Data Prevista', 'Status', 'Finalidade'];
+    const headers = ['ID', 'Usuário', 'Equipamento', 'Data de Início', 'Hora de Início', 'Data Prevista', 'Status', 'Finalidade'];
     const rows = filteredLoans.map((loan) => [
       loan.id,
       loan.userName || loan.user_name,
       loan.equipmentName || loan.equipment_name,
       new Date(loan.startDate || loan.start_date).toLocaleDateString('pt-BR'),
+      (loan.startTime || loan.start_time) || 'Hora não definida',
       new Date(loan.expectedReturnDate || loan.expected_return_date).toLocaleDateString('pt-BR'),
       loan.status,
       (loan.purpose || '').replace(/\n|\r/g, ' ')
@@ -525,7 +526,7 @@ export const Relatorios = () => {
                     <TableHead>ID</TableHead>
                     <TableHead>Usuário</TableHead>
                     <TableHead>Equipamento</TableHead>
-                    <TableHead>Data de Início</TableHead>
+                    <TableHead>Data/Hora de Início</TableHead>
                     <TableHead>Data Prevista</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Finalidade</TableHead>
@@ -534,14 +535,14 @@ export const Relatorios = () => {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                         <span>Carregando empréstimos...</span>
                       </TableCell>
                     </TableRow>
                   ) : getFilteredData().filteredLoans.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         Nenhum empréstimo encontrado no período selecionado
                       </TableCell>
                     </TableRow>
@@ -551,7 +552,14 @@ export const Relatorios = () => {
                         <TableCell className="font-mono">#{loan.id}</TableCell>
                         <TableCell>{loan.userName || loan.user_name}</TableCell>
                         <TableCell>{loan.equipmentName || loan.equipment_name}</TableCell>
-                        <TableCell>{formatDate(loan.startDate || loan.start_date)}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{formatDate(loan.startDate || loan.start_date)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {(loan.startTime || loan.start_time) ? (loan.startTime || loan.start_time) : 'Hora não definida'}
+                            </p>
+                          </div>
+                        </TableCell>
                         <TableCell>{formatDate(loan.expectedReturnDate || loan.expected_return_date)}</TableCell>
                         <TableCell>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${

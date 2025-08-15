@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,72 +8,40 @@ import {
   CheckCircle, 
   Clock,
   X,
-  Check
+  Check,
+  Loader2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-interface Notification {
-  id: string;
-  type: 'alert' | 'info' | 'success' | 'warning';
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-  actionRequired?: boolean;
-}
-
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'alert',
-    title: 'Devolução em Atraso',
-    message: 'O equipamento HP EliteDesk 800 está em atraso. Emprestado para Ana Santos em 15/01/2024.',
-    timestamp: '2024-01-20T10:30:00',
-    read: false,
-    actionRequired: true
-  },
-  {
-    id: '2',
-    type: 'warning',
-    title: 'Devolução Próxima',
-    message: 'O equipamento Dell Latitude 5520 deve ser devolvido hoje. Emprestado para João Silva.',
-    timestamp: '2024-01-20T09:15:00',
-    read: false,
-    actionRequired: false
-  },
-  {
-    id: '3',
-    type: 'info',
-    title: 'Nova Reserva',
-    message: 'Maria Costa fez uma reserva do projetor Epson PowerLite X49 para 25/01/2024.',
-    timestamp: '2024-01-20T08:45:00',
-    read: true,
-    actionRequired: false
-  },
-  {
-    id: '4',
-    type: 'success',
-    title: 'Devolução Confirmada',
-    message: 'O notebook Dell Latitude 5520 foi devolvido por Maria Costa em perfeito estado.',
-    timestamp: '2024-01-19T16:20:00',
-    read: true,
-    actionRequired: false
-  },
-  {
-    id: '5',
-    type: 'warning',
-    title: 'Equipamento em Manutenção',
-    message: 'O tablet Apple iPad Air foi enviado para manutenção devido a problemas na bateria.',
-    timestamp: '2024-01-19T14:10:00',
-    read: false,
-    actionRequired: false
-  }
-];
+import { notificationsAPI } from '@/lib/api';
+import { Notification } from '@/types';
 
 export const Notificacoes = () => {
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread' | 'alerts'>('all');
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+
+  // Carrega notificações da API
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const loadNotifications = async () => {
+    try {
+      setLoading(true);
+      const data = await notificationsAPI.list();
+      setNotifications(data.results || data);
+    } catch (error) {
+      console.error('Erro ao carregar notificações:', error);
+      toast({
+        title: "Erro ao carregar notificações",
+        description: "Não foi possível carregar as notificações.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -131,41 +99,68 @@ export const Notificacoes = () => {
     }
   };
 
-  const markAsRead = (notificationId: string) => {
-    setNotifications(prev => 
-      prev.map(notification => 
-        notification.id === notificationId 
-          ? { ...notification, read: true }
-          : notification
-      )
-    );
-    
-    toast({
-      title: "Notificação marcada como lida",
-      description: "A notificação foi atualizada com sucesso.",
-    });
+  const markAsRead = async (notificationId: string) => {
+    try {
+      await notificationsAPI.markAsRead(notificationId);
+      setNotifications(prev => 
+        prev.map(notification => 
+          notification.id === notificationId 
+            ? { ...notification, read: true }
+            : notification
+        )
+      );
+      toast({
+        title: "Notificação marcada como lida",
+        description: "A notificação foi atualizada com sucesso.",
+      });
+    } catch (error) {
+      console.error('Erro ao marcar notificação como lida:', error);
+      toast({
+        title: "Erro ao marcar como lida",
+        description: "Não foi possível marcar a notificação como lida.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => 
-      prev.map(notification => ({ ...notification, read: true }))
-    );
-    
-    toast({
-      title: "Todas as notificações foram marcadas como lidas",
-      description: "Suas notificações foram atualizadas.",
-    });
+  const markAllAsRead = async () => {
+    try {
+      await notificationsAPI.markAllAsRead();
+      setNotifications(prev => 
+        prev.map(notification => ({ ...notification, read: true }))
+      );
+      toast({
+        title: "Todas as notificações foram marcadas como lidas",
+        description: "Suas notificações foram atualizadas.",
+      });
+    } catch (error) {
+      console.error('Erro ao marcar todas como lidas:', error);
+      toast({
+        title: "Erro ao marcar todas como lidas",
+        description: "Não foi possível marcar todas as notificações como lidas.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const deleteNotification = (notificationId: string) => {
-    setNotifications(prev => 
-      prev.filter(notification => notification.id !== notificationId)
-    );
-    
-    toast({
-      title: "Notificação removida",
-      description: "A notificação foi excluída com sucesso.",
-    });
+  const deleteNotification = async (notificationId: string) => {
+    try {
+      await notificationsAPI.delete(notificationId);
+      setNotifications(prev => 
+        prev.filter(notification => notification.id !== notificationId)
+      );
+      toast({
+        title: "Notificação removida",
+        description: "A notificação foi excluída com sucesso.",
+      });
+    } catch (error) {
+      console.error('Erro ao excluir notificação:', error);
+      toast({
+        title: "Erro ao excluir notificação",
+        description: "Não foi possível excluir a notificação.",
+        variant: "destructive"
+      });
+    }
   };
 
   const filteredNotifications = notifications.filter(notification => {
@@ -181,6 +176,14 @@ export const Notificacoes = () => {
 
   const unreadCount = notifications.filter(n => !n.read).length;
   const alertCount = notifications.filter(n => n.type === 'alert' || n.actionRequired).length;
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
