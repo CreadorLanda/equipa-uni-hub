@@ -48,6 +48,11 @@ class Loan(models.Model):
     expected_return_date = models.DateField(
         verbose_name='Data Prevista de Devolução'
     )
+    expected_return_time = models.TimeField(
+        blank=True,
+        null=True,
+        verbose_name='Hora Prevista de Devolução'
+    )
     actual_return_date = models.DateField(
         blank=True,
         null=True,

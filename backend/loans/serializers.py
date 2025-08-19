@@ -22,7 +22,7 @@ class LoanSerializer(serializers.ModelSerializer):
     class Meta:
         model = Loan
         fields = [
-            'id', 'user', 'equipment', 'start_date', 'start_time', 'expected_return_date',
+            'id', 'user', 'equipment', 'start_date', 'start_time', 'expected_return_date', 'expected_return_time',
             'actual_return_date', 'status', 'purpose', 'notes',
             'created_at', 'updated_at', 'created_by', 'created_by_user_name',
             'user_name', 'equipment_name', 'is_overdue', 'days_overdue',
@@ -48,10 +48,10 @@ class LoanSerializer(serializers.ModelSerializer):
                 'equipment': f'Equipamento não está disponível. Status atual: {equipment.get_status_display()}'
             })
         
-        # Verifica se a data de devolução é posterior à data de início
-        if expected_return_date and start_date and expected_return_date <= start_date:
+        # Verifica se a data de devolução não é anterior à data de início (permite mesma data)
+        if expected_return_date and start_date and expected_return_date < start_date:
             raise serializers.ValidationError({
-                'expected_return_date': 'Data de devolução deve ser posterior à data de início.'
+                'expected_return_date': 'Data de devolução não pode ser anterior à data de início.'
             })
         
         return data
@@ -78,7 +78,7 @@ class LoanListSerializer(serializers.ModelSerializer):
         model = Loan
         fields = [
             'id', 'user_name', 'equipment_name', 'start_date', 'start_time',
-            'expected_return_date', 'status', 'is_overdue', 'days_overdue'
+            'expected_return_date', 'expected_return_time', 'status', 'is_overdue', 'days_overdue'
         ]
 
 

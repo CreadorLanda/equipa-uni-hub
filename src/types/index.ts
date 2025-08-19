@@ -33,6 +33,7 @@ export interface Loan {
   startDate: string;
   startTime: string;
   expectedReturnDate: string;
+  expectedReturnTime?: string;
   actualReturnDate?: string;
   status: LoanStatus;
   purpose: string;

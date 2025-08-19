@@ -57,6 +57,7 @@ export const Emprestimos = () => {
     equipmentId: '',
     startTime: new Date().toTimeString().slice(0, 5), // Hora atual no formato HH:MM
     expectedReturnDate: '',
+    expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
     purpose: '',
     notes: ''
   });
@@ -162,7 +163,12 @@ export const Emprestimos = () => {
 
   const isOverdue = (loan: Loan) => {
     if (loan.status === 'concluido' || loan.status === 'cancelado') return false;
-    return new Date(loan.expectedReturnDate || loan.expected_return_date) < new Date();
+    // Considera hora prevista se existir
+    const dateStr = (loan.expectedReturnDate || (loan as any).expected_return_date);
+    if (!dateStr) return false;
+    const timeStr = (loan.expectedReturnTime || (loan as any).expected_return_time || '23:59');
+    const iso = `${dateStr}T${timeStr}:00`;
+    return new Date(iso) < new Date();
   };
 
   const handleNewLoan = async (e: React.FormEvent) => {
@@ -188,6 +194,7 @@ export const Emprestimos = () => {
         equipment: selectedEquipment.id,
         start_time: formData.startTime,
         expected_return_date: formData.expectedReturnDate,
+        expected_return_time: formData.expectedReturnTime,
         purpose: formData.purpose,
         notes: formData.notes
       });
@@ -235,6 +242,7 @@ export const Emprestimos = () => {
       equipmentId: '',
       startTime: new Date().toTimeString().slice(0, 5), // Hora atual no formato HH:MM
       expectedReturnDate: '',
+      expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
       purpose: '',
       notes: ''
     });
@@ -355,8 +363,18 @@ export const Emprestimos = () => {
                   type="date"
                   value={formData.expectedReturnDate}
                   onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnDate: e.target.value }))}
-                  min={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                  min={new Date().toISOString().split('T')[0]}
                   required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="expectedReturnTime">Hora Prevista de Devolução</Label>
+                <Input
+                  id="expectedReturnTime"
+                  type="time"
+                  value={formData.expectedReturnTime}
+                  onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnTime: e.target.value }))}
                 />
               </div>
 
@@ -519,7 +537,7 @@ export const Emprestimos = () => {
                       <TableHead>Usuário</TableHead>
                       <TableHead>Equipamento</TableHead>
                       <TableHead>Data/Hora de Início</TableHead>
-                      <TableHead>Data Prevista</TableHead>
+                      <TableHead>Data/Hora Prevista</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Ações</TableHead>
                     </TableRow>
@@ -546,7 +564,12 @@ export const Emprestimos = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {formatDate(loan.expectedReturnDate || loan.expected_return_date)}
+                          <span>
+                            {formatDate(loan.expectedReturnDate || (loan as any).expected_return_date)}
+                            {(loan.expectedReturnTime || (loan as any).expected_return_time) && (
+                              <span className="text-sm text-muted-foreground"> {loan.expectedReturnTime || (loan as any).expected_return_time}</span>
+                            )}
+                          </span>
                           {isOverdue(loan) && (
                             <AlertTriangle className="w-4 h-4 text-destructive" />
                           )}
@@ -659,7 +682,7 @@ export const Emprestimos = () => {
                     <TableHead>Usuário</TableHead>
                     <TableHead>Equipamento</TableHead>
                     <TableHead>Data/Hora de Início</TableHead>
-                    <TableHead>Data Prevista</TableHead>
+                    <TableHead>Data/Hora Prevista</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Ações</TableHead>
                   </TableRow>
@@ -684,7 +707,12 @@ export const Emprestimos = () => {
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell>{formatDate(loan.expectedReturnDate || loan.expected_return_date)}</TableCell>
+                      <TableCell>
+                        {formatDate(loan.expectedReturnDate || (loan as any).expected_return_date)}
+                        {(loan.expectedReturnTime || (loan as any).expected_return_time) && (
+                          <span className="text-sm text-muted-foreground"> {loan.expectedReturnTime || (loan as any).expected_return_time}</span>
+                        )}
+                      </TableCell>
                       <TableCell>{getStatusBadge(loan.status)}</TableCell>
                       <TableCell>
                         {canReturnLoan(loan) && (loan.status === 'ativo' || loan.status === 'atrasado') && (
@@ -744,8 +772,8 @@ export const Emprestimos = () => {
                   <span>{formatDate(selectedLoan.startDate || selectedLoan.start_date)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Hora de Início:</span>
-                  <span>{(selectedLoan.startTime || selectedLoan.start_time) ? (selectedLoan.startTime || selectedLoan.start_time) : 'Hora não definida'}</span>
+                  <span>Hora de Devolução:</span>
+                  <span>{(selectedLoan.expectedReturnTime || (selectedLoan as any).expected_return_time) ? (selectedLoan.expectedReturnTime || (selectedLoan as any).expected_return_time) : 'Hora não definida'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Data de Devolução:</span>
