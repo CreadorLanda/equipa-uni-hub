@@ -82,8 +82,6 @@ pip install -r requirements.txt
 # Executar migrações
 python manage.py migrate
 
-# Criar dados iniciais
-python manage.py create_initial_data
 
 # Iniciar servidor
 python manage.py runserver

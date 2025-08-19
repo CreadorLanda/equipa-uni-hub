@@ -755,7 +755,7 @@ export const Emprestimos = () => {
             </div>
           )}
           
-          <DialogFooter>
+          <DialogFooter className="print:hidden">
             <Button variant="outline" onClick={() => setShowTicketDialog(false)}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar

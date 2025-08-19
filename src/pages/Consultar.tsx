@@ -135,25 +135,28 @@ export const Consultar = () => {
     );
   };
 
+  const normalizeId = (value: unknown) => String(value);
+
   const getCurrentUser = (equipmentId: string) => {
-    const currentLoan = loans.find(
-      loan => (loan.equipmentId === equipmentId || loan.equipment_id === equipmentId) && 
-      (loan.status === 'ativo' || loan.status === 'atrasado')
-    );
-    return currentLoan?.userName || currentLoan?.user_name || null;
+    const currentLoan = loans.find((loan) => {
+      const loanEquipmentId = normalizeId((loan as any).equipmentId ?? (loan as any).equipment_id);
+      return loanEquipmentId === normalizeId(equipmentId) && (loan.status === 'ativo' || loan.status === 'atrasado');
+    });
+    return currentLoan?.userName || (currentLoan as any)?.user_name || null;
   };
 
   // Função para verificar consistência entre status do equipamento e empréstimos
   const getEquipmentStatusInfo = (equipment: Equipment) => {
-    const currentLoan = loans.find(
-      loan => (loan.equipmentId === equipment.id || loan.equipment_id === equipment.id) && 
-      (loan.status === 'ativo' || loan.status === 'atrasado')
-    );
+    const equipmentId = normalizeId((equipment as any).id);
+    const currentLoan = loans.find((loan) => {
+      const loanEquipmentId = normalizeId((loan as any).equipmentId ?? (loan as any).equipment_id);
+      return loanEquipmentId === equipmentId && (loan.status === 'ativo' || loan.status === 'atrasado');
+    });
     
-    const currentReservation = reservations.find(
-      reservation => (reservation.equipmentId === equipment.id || reservation.equipment_id === equipment.id) && 
-      reservation.status === 'ativa'
-    );
+    const currentReservation = reservations.find((reservation) => {
+      const reservationEquipmentId = normalizeId((reservation as any).equipmentId ?? (reservation as any).equipment_id);
+      return reservationEquipmentId === equipmentId && reservation.status === 'ativa';
+    });
     
     // Se há um empréstimo ativo mas o equipamento está marcado como disponível, há inconsistência
     if (currentLoan && equipment.status === 'disponivel') {
@@ -243,7 +246,7 @@ export const Consultar = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="flex items-center justify-between p-4">
             <div>
@@ -288,17 +291,7 @@ export const Consultar = () => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="flex items-center justify-between p-4">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Inconsistências</p>
-              <p className="text-2xl font-bold text-destructive">
-                {filteredEquipments.filter(eq => getEquipmentStatusInfo(eq).status === 'inconsistente').length}
-              </p>
-            </div>
-            <XCircle className="w-8 h-8 text-destructive" />
-          </CardContent>
-        </Card>
+        
       </div>
 
       {/* Search and Filters */}
@@ -443,11 +436,7 @@ export const Consultar = () => {
                         <div className="flex items-center gap-2">
                           {getStatusIcon(equipment.status)}
                           {getStatusBadge(equipment.status)}
-                          {statusInfo.status === 'inconsistente' && (
-                            <Badge variant="outline" className="text-xs text-destructive border-destructive">
-                              Inconsistente
-                            </Badge>
-                          )}
+                          
                         </div>
                       </TableCell>
                       <TableCell>{equipment.location || '-'}</TableCell>
@@ -462,11 +451,7 @@ export const Consultar = () => {
                                 </Badge>
                               )}
                             </div>
-                            {statusInfo.status === 'inconsistente' && (
-                              <p className="text-xs text-destructive mt-1">
-                                {statusInfo.message}
-                              </p>
-                            )}
+                            
                           </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">-</span>
