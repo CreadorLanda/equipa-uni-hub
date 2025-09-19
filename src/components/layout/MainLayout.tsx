@@ -1,8 +1,8 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
-import { Bell, User } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { NotificationDropdown } from "./NotificationDropdown";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -31,9 +31,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
             
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm">
-                <Bell className="w-4 h-4" />
-              </Button>
+              <NotificationDropdown />
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
                   <User className="w-4 h-4 text-primary-foreground" />

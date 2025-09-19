@@ -55,7 +55,6 @@ export const Emprestimos = () => {
 
   const [formData, setFormData] = useState({
     equipmentId: '',
-    startTime: new Date().toTimeString().slice(0, 5), // Hora atual no formato HH:MM
     expectedReturnDate: '',
     expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
     purpose: '',
@@ -192,7 +191,6 @@ export const Emprestimos = () => {
       const newLoan = await loansAPI.create({
         user: user.id,
         equipment: selectedEquipment.id,
-        start_time: formData.startTime,
         expected_return_date: formData.expectedReturnDate,
         expected_return_time: formData.expectedReturnTime,
         purpose: formData.purpose,
@@ -240,7 +238,6 @@ export const Emprestimos = () => {
   const resetForm = () => {
     setFormData({
       equipmentId: '',
-      startTime: new Date().toTimeString().slice(0, 5), // Hora atual no formato HH:MM
       expectedReturnDate: '',
       expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
       purpose: '',
@@ -343,17 +340,6 @@ export const Emprestimos = () => {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="startTime">Hora de Início</Label>
-                <Input
-                  id="startTime"
-                  type="time"
-                  value={formData.startTime}
-                  onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                  required
-                />
               </div>
 
               <div className="space-y-2">

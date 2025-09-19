@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,37 +11,18 @@ import {
   Check,
   Loader2
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { notificationsAPI } from '@/lib/api';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { Notification } from '@/types';
 
 export const Notificacoes = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread' | 'alerts'>('all');
-  const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
-
-  // Carrega notificações da API
-  useEffect(() => {
-    loadNotifications();
-  }, []);
-
-  const loadNotifications = async () => {
-    try {
-      setLoading(true);
-      const data = await notificationsAPI.list();
-      setNotifications(data.results || data);
-    } catch (error) {
-      console.error('Erro ao carregar notificações:', error);
-      toast({
-        title: "Erro ao carregar notificações",
-        description: "Não foi possível carregar as notificações.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { 
+    notifications, 
+    loading, 
+    markAsRead, 
+    markAllAsRead, 
+    deleteNotification 
+  } = useNotifications();
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -99,69 +80,6 @@ export const Notificacoes = () => {
     }
   };
 
-  const markAsRead = async (notificationId: string) => {
-    try {
-      await notificationsAPI.markAsRead(notificationId);
-      setNotifications(prev => 
-        prev.map(notification => 
-          notification.id === notificationId 
-            ? { ...notification, read: true }
-            : notification
-        )
-      );
-      toast({
-        title: "Notificação marcada como lida",
-        description: "A notificação foi atualizada com sucesso.",
-      });
-    } catch (error) {
-      console.error('Erro ao marcar notificação como lida:', error);
-      toast({
-        title: "Erro ao marcar como lida",
-        description: "Não foi possível marcar a notificação como lida.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const markAllAsRead = async () => {
-    try {
-      await notificationsAPI.markAllAsRead();
-      setNotifications(prev => 
-        prev.map(notification => ({ ...notification, read: true }))
-      );
-      toast({
-        title: "Todas as notificações foram marcadas como lidas",
-        description: "Suas notificações foram atualizadas.",
-      });
-    } catch (error) {
-      console.error('Erro ao marcar todas como lidas:', error);
-      toast({
-        title: "Erro ao marcar todas como lidas",
-        description: "Não foi possível marcar todas as notificações como lidas.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const deleteNotification = async (notificationId: string) => {
-    try {
-      await notificationsAPI.delete(notificationId);
-      setNotifications(prev => 
-        prev.filter(notification => notification.id !== notificationId)
-      );
-      toast({
-        title: "Notificação removida",
-        description: "A notificação foi excluída com sucesso.",
-      });
-    } catch (error) {
-      console.error('Erro ao excluir notificação:', error);
-      toast({
-        title: "Erro ao excluir notificação",
-        description: "Não foi possível excluir a notificação.",
-        variant: "destructive"
-      });
-    }
-  };
 
   const filteredNotifications = notifications.filter(notification => {
     switch (filter) {
