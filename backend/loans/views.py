@@ -12,6 +12,7 @@ from .serializers import (
     LoanSerializer, LoanListSerializer, LoanReturnSerializer,
     LoanStatsSerializer
 )
+from .services import LoanNotificationService
 
 
 class LoanViewSet(viewsets.ModelViewSet):
@@ -81,9 +82,16 @@ class LoanViewSet(viewsets.ModelViewSet):
         """
         # Docentes só podem criar empréstimos para si mesmos
         if self.request.user.role == 'docente':
-            serializer.save(user=self.request.user)
+            loan = serializer.save(user=self.request.user)
         else:
-            serializer.save()
+            loan = serializer.save()
+        
+        # Envia notificação de empréstimo criado
+        try:
+            LoanNotificationService.send_loan_created_notification(loan)
+        except Exception as e:
+            # Log error but don't fail the loan creation
+            print(f"Erro ao enviar notificação de empréstimo criado: {e}")
     
     def perform_update(self, serializer):
         """
@@ -183,6 +191,14 @@ class LoanViewSet(viewsets.ModelViewSet):
         
         if serializer.is_valid():
             returned_loan = serializer.save()
+            
+            # Envia notificação de devolução
+            try:
+                LoanNotificationService.send_loan_returned_notification(returned_loan)
+            except Exception as e:
+                # Log error but don't fail the return
+                print(f"Erro ao enviar notificação de devolução: {e}")
+            
             loan_serializer = LoanSerializer(returned_loan)
             return Response(
                 {

@@ -1,0 +1,5 @@
+# Verificação de empréstimos - a cada 30 minutos durante horário comercial
+*/30 8-18 * * * python /app/manage.py check_loan_notifications --hours-before=2 >> /var/log/loan_notifications.log 2>&1
+
+# Verificação de empréstimos - a cada hora fora do horário comercial  
+0 0-7,19-23 * * * python /app/manage.py check_loan_notifications --hours-before=2 >> /var/log/loan_notifications.log 2>&1

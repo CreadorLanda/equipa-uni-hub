@@ -32,6 +32,8 @@ class LoanSerializer(serializers.ModelSerializer):
             'created_at': {'read_only': True},
             'updated_at': {'read_only': True},
             'created_by': {'read_only': True},
+            'start_date': {'read_only': True},
+            'start_time': {'read_only': True},
         }
     
     def validate(self, data):
@@ -39,7 +41,7 @@ class LoanSerializer(serializers.ModelSerializer):
         Validações customizadas para empréstimo
         """
         equipment = data.get('equipment')
-        start_date = data.get('start_date', timezone.now().date())
+        start_date = timezone.now().date()  # Sempre usa a data atual
         expected_return_date = data.get('expected_return_date')
         
         # Verifica se o equipamento está disponível para empréstimo
