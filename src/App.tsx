@@ -14,6 +14,9 @@ import { Reservas } from "@/pages/Reservas";
 import { Relatorios } from "@/pages/Relatorios";
 import { Consultar } from "@/pages/Consultar";
 import { Notificacoes } from "@/pages/Notificacoes";
+import { Utilizadores } from "@/pages/Utilizadores";
+import { Perfil } from "@/pages/Perfil";
+import { Historico } from "@/pages/Historico";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
@@ -63,6 +66,21 @@ const App = () => (
             <Route path="/notificacoes" element={
               <ProtectedRoute>
                 <Notificacoes />
+              </ProtectedRoute>
+            } />
+            <Route path="/utilizadores" element={
+              <ProtectedRoute allowedRoles={['tecnico']}>
+                <Utilizadores />
+              </ProtectedRoute>
+            } />
+            <Route path="/perfil" element={
+              <ProtectedRoute>
+                <Perfil />
+              </ProtectedRoute>
+            } />
+            <Route path="/historico" element={
+              <ProtectedRoute>
+                <Historico />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />

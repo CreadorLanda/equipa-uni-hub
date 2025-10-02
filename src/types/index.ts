@@ -6,6 +6,12 @@ export interface User {
   email: string;
   role: UserRole;
   department?: string;
+  academic_degree?: string;
+  position?: string;
+  contact?: string;
+  address?: string;
+  area?: string;
+  is_active?: boolean;
 }
 
 export interface Equipment {

@@ -19,12 +19,14 @@ import {
   HandCoins,
   ArrowLeft,
   Printer,
-  Loader2
+  Loader2,
+  Info,
+  Eye
 } from 'lucide-react';
-import { Loan, LoanStatus, Equipment } from '@/types';
+import { Loan, LoanStatus, Equipment, User } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { loansAPI, equipmentAPI } from '@/lib/api';
+import { loansAPI, equipmentAPI, usersAPI } from '@/lib/api';
 
 const statusOptions: { value: LoanStatus; label: string; color: string }[] = [
   { value: 'ativo', label: 'Ativo', color: 'bg-info text-info-foreground' },
@@ -36,11 +38,14 @@ const statusOptions: { value: LoanStatus; label: string; color: string }[] = [
 export const Emprestimos = () => {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [availableEquipments, setAvailableEquipments] = useState<Equipment[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showTicketDialog, setShowTicketDialog] = useState(false);
+  const [showEquipmentDetailsDialog, setShowEquipmentDetailsDialog] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
+  const [selectedEquipmentDetails, setSelectedEquipmentDetails] = useState<Equipment | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
@@ -54,6 +59,7 @@ export const Emprestimos = () => {
   console.log('Loading:', loading);
 
   const [formData, setFormData] = useState({
+    userId: '',
     equipmentId: '',
     expectedReturnDate: '',
     expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
@@ -82,6 +88,12 @@ export const Emprestimos = () => {
       console.log('Equipment data received:', equipmentData);
       setAvailableEquipments(equipmentData.results || equipmentData);
       
+      // Carrega usuários (para técnicos selecionarem)
+      if (canCreateLoan()) {
+        const usersData = await usersAPI.list();
+        setUsers(usersData.results || usersData);
+      }
+      
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       toast({
@@ -100,9 +112,8 @@ export const Emprestimos = () => {
   };
 
   const canReturnLoan = (loan: Loan) => {
-    // Usuário pode devolver seus próprios empréstimos ou se for técnico/secretário/coordenador
-    return loan.userId === user?.id || 
-           (user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role));
+    // Apenas técnico/secretário/coordenador podem devolver
+    return user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role);
   };
 
   const canViewAllLoans = () => {
@@ -185,11 +196,30 @@ export const Emprestimos = () => {
     const selectedEquipment = availableEquipments.find(eq => String(eq.id) === String(formData.equipmentId));
     if (!selectedEquipment || !user) return;
 
+    // Determina o usuário do empréstimo
+    const loanUserId = formData.userId || user.id;
+
+    // Verifica se o usuário tem empréstimos atrasados
+    const userOverdueLoans = loans.filter(loan => {
+      const isUserLoan = (loan.userId || (loan as any).user) === loanUserId;
+      return isUserLoan && isOverdue(loan);
+    });
+
+    if (userOverdueLoans.length > 0) {
+      const targetUser = users.find(u => String(u.id) === String(loanUserId)) || user;
+      toast({
+        title: "Empréstimo bloqueado",
+        description: `${targetUser?.name || 'Este utente'} possui ${userOverdueLoans.length} empréstimo(s) atrasado(s). É necessário devolver os equipamentos pendentes antes de solicitar um novo empréstimo.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
     setSubmitting(true);
     
     try {
       const newLoan = await loansAPI.create({
-        user: user.id,
+        user: loanUserId,
         equipment: selectedEquipment.id,
         expected_return_date: formData.expectedReturnDate,
         expected_return_time: formData.expectedReturnTime,
@@ -237,6 +267,7 @@ export const Emprestimos = () => {
 
   const resetForm = () => {
     setFormData({
+      userId: '',
       equipmentId: '',
       expectedReturnDate: '',
       expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
@@ -244,6 +275,21 @@ export const Emprestimos = () => {
       notes: ''
     });
     setIsDialogOpen(false);
+  };
+
+  const handleViewEquipmentDetails = async (equipmentId: string) => {
+    try {
+      const equipment = await equipmentAPI.get(equipmentId);
+      setSelectedEquipmentDetails(equipment);
+      setShowEquipmentDetailsDialog(true);
+    } catch (error) {
+      console.error('Erro ao carregar detalhes do equipamento:', error);
+      toast({
+        title: "Erro ao carregar detalhes",
+        description: "Não foi possível carregar os detalhes do equipamento.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleReturn = async (loan: Loan) => {
@@ -322,6 +368,31 @@ export const Emprestimos = () => {
             </DialogHeader>
             
             <form onSubmit={handleNewLoan} className="space-y-4">
+              {/* Campo de seleção de usuário (apenas para técnicos) */}
+              {canCreateLoan() && users.length > 0 && (
+                <div className="space-y-2">
+                  <Label htmlFor="user">Empréstimo para Utente</Label>
+                  <Select 
+                    value={formData.userId} 
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, userId: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um utente (ou deixe vazio para você)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">
+                        <span className="italic">Meu próprio empréstimo</span>
+                      </SelectItem>
+                      {users.map(u => (
+                        <SelectItem key={u.id} value={String(u.id)}>
+                          {u.name} - {u.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="equipment">Equipamento</Label>
                 <Select 
@@ -538,7 +609,19 @@ export const Emprestimos = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <p className="font-medium">{loan.equipmentName || loan.equipment_name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{loan.equipmentName || loan.equipment_name}</p>
+                          {!canViewAllLoans() && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewEquipmentDetails(loan.equipmentId || (loan as any).equipment)}
+                              title="Ver detalhes do equipamento"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div>
@@ -722,6 +805,86 @@ export const Emprestimos = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Equipment Details Dialog */}
+      <Dialog open={showEquipmentDetailsDialog} onOpenChange={setShowEquipmentDetailsDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="w-5 h-5" />
+              Detalhes do Equipamento
+            </DialogTitle>
+            <DialogDescription>
+              Informações completas sobre o equipamento emprestado
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedEquipmentDetails && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-sm">Marca</Label>
+                  <p className="text-lg font-medium mt-1">{selectedEquipmentDetails.brand}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-sm">Modelo</Label>
+                  <p className="text-lg font-medium mt-1">{selectedEquipmentDetails.model}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-sm">Tipo</Label>
+                  <p className="text-lg font-medium mt-1 capitalize">{selectedEquipmentDetails.type}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-sm">Número de Série</Label>
+                  <p className="text-lg font-medium mt-1 font-mono">
+                    {selectedEquipmentDetails.serialNumber || (selectedEquipmentDetails as any).serial_number}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-sm">Status</Label>
+                  <div className="mt-1">
+                    <Badge>{selectedEquipmentDetails.status}</Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-sm">Data de Aquisição</Label>
+                  <p className="text-lg font-medium mt-1">
+                    {formatDate(selectedEquipmentDetails.acquisitionDate || (selectedEquipmentDetails as any).acquisition_date)}
+                  </p>
+                </div>
+              </div>
+
+              {selectedEquipmentDetails.location && (
+                <div>
+                  <Label className="text-muted-foreground text-sm">Localização</Label>
+                  <p className="text-lg font-medium mt-1">{selectedEquipmentDetails.location}</p>
+                </div>
+              )}
+
+              {selectedEquipmentDetails.description && (
+                <div>
+                  <Label className="text-muted-foreground text-sm">Descrição</Label>
+                  <p className="text-sm mt-1 p-3 bg-muted rounded-md">
+                    {selectedEquipmentDetails.description}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEquipmentDetailsDialog(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Ticket Dialog */}
       <Dialog open={showTicketDialog} onOpenChange={setShowTicketDialog}>

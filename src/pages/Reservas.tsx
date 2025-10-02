@@ -163,6 +163,35 @@ export const Reservas = () => {
       return;
     }
 
+    // Verifica se o usuário tem empréstimos atrasados
+    try {
+      const loansData = await loansAPI.list();
+      const userLoans = (loansData.results || loansData).filter((loan: any) => 
+        (loan.userId || loan.user) === user.id
+      );
+      
+      const overdueLoans = userLoans.filter((loan: any) => {
+        if (loan.status === 'concluido' || loan.status === 'cancelado') return false;
+        const dateStr = loan.expectedReturnDate || loan.expected_return_date;
+        if (!dateStr) return false;
+        const timeStr = loan.expectedReturnTime || loan.expected_return_time || '23:59';
+        const iso = `${dateStr}T${timeStr}:00`;
+        return new Date(iso) < new Date();
+      });
+
+      if (overdueLoans.length > 0) {
+        toast({
+          title: "Reserva bloqueada",
+          description: `Você possui ${overdueLoans.length} empréstimo(s) atrasado(s). É necessário devolver os equipamentos pendentes antes de fazer uma nova reserva.`,
+          variant: "destructive"
+        });
+        return;
+      }
+    } catch (error) {
+      console.error('Erro ao verificar empréstimos atrasados:', error);
+      // Continua com a reserva mesmo se houver erro na verificação
+    }
+
     setSubmitting(true);
     
     try {
@@ -227,26 +256,36 @@ export const Reservas = () => {
     }
 
     try {
-      await reservationsAPI.confirm(reservation.id, {
-        confirmed_at: new Date().toISOString()
+      // Converter reserva em empréstimo ativo
+      await reservationsAPI.convertToLoan(reservation.id, {
+        expected_return_date: reservation.expectedPickupDate || reservation.expected_pickup_date,
+        expected_return_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toTimeString().slice(0, 5), // 7 dias
+        purpose: reservation.purpose,
+        notes: `Empréstimo gerado a partir da reserva #${reservation.id}`
       });
       
-      setReservations(prev => prev.map(r => 
-        r.id === reservation.id 
-          ? { ...r, status: 'confirmada' as ReservationStatus }
-          : r
-      ));
+      // Remove a reserva da lista (foi convertida em empréstimo)
+      setReservations(prev => prev.filter(r => r.id !== reservation.id));
       
       toast({
         title: "Reserva confirmada!",
-        description: "A reserva foi confirmada e está pronta para retirada.",
+        description: "A reserva foi confirmada e convertida em empréstimo ativo.",
       });
+      
+      // Recarrega equipamentos disponíveis
+      const equipmentData = await equipmentAPI.available();
+      setAvailableEquipments(equipmentData.results || equipmentData);
       
     } catch (error) {
       console.error('Erro ao confirmar reserva:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      let description = "Não foi possível confirmar a reserva.";
+      if (errorMessage.includes('não está disponível')) {
+        description = "O equipamento não está mais disponível para empréstimo.";
+      }
       toast({
         title: "Erro ao confirmar reserva",
-        description: "Não foi possível confirmar a reserva.",
+        description,
         variant: "destructive"
       });
     }
