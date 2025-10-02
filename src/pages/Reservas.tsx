@@ -20,7 +20,7 @@ import {
 import { Reservation, ReservationStatus, Equipment } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { reservationsAPI, equipmentAPI } from '@/lib/api';
+import { reservationsAPI, equipmentAPI, loansAPI } from '@/lib/api';
 
 const statusOptions: { value: ReservationStatus; label: string; color: string }[] = [
   { value: 'ativa', label: 'Ativa', color: 'bg-info text-info-foreground' },
@@ -220,11 +220,18 @@ export const Reservas = () => {
       console.error('Erro ao criar reserva:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       let description = "Não foi possível registrar a reserva.";
-      if (errorMessage.toLowerCase().includes('não está disponível')) {
+      
+      // Parse specific validation errors
+      if (errorMessage.includes('expected_pickup_date') && errorMessage.includes('Já existe uma reserva')) {
+        description = "Já existe uma reserva para este equipamento na data selecionada. Por favor, escolha outra data ou equipamento.";
+      } else if (errorMessage.toLowerCase().includes('não está disponível')) {
         description = "O equipamento selecionado não está disponível para reserva.";
       } else if (errorMessage.includes('400')) {
         description = "Dados inválidos. Verifique os campos do formulário.";
+      } else if (errorMessage.includes('401') || errorMessage.includes('403')) {
+        description = "Você não tem permissão para criar esta reserva.";
       }
+      
       toast({
         title: "Erro ao criar reserva",
         description,

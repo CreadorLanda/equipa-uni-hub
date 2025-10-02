@@ -2,6 +2,7 @@ from django.shortcuts import render
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import authenticate
 from django.db.models import Q
 from .models import User
@@ -119,10 +120,10 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         Personaliza a criação de usuário
         """
-        # Apenas coordenadores e secretários podem criar usuários
-        if self.request.user.role not in ['coordenador', 'secretario']:
-            raise permissions.PermissionDenied(
-                'Apenas coordenadores e secretários podem criar usuários.'
+        # Apenas técnicos, coordenadores e secretários podem criar usuários
+        if self.request.user.role not in ['tecnico', 'coordenador', 'secretario']:
+            raise PermissionDenied(
+                'Apenas técnicos, coordenadores e secretários podem criar usuários.'
             )
         serializer.save()
     
@@ -135,9 +136,9 @@ class UserViewSet(viewsets.ModelViewSet):
             serializer.save()
             return
         
-        # Apenas coordenadores e secretários podem editar outros usuários
-        if self.request.user.role not in ['coordenador', 'secretario']:
-            raise permissions.PermissionDenied(
+        # Apenas técnicos, coordenadores e secretários podem editar outros usuários
+        if self.request.user.role not in ['tecnico', 'coordenador', 'secretario']:
+            raise PermissionDenied(
                 'Você não tem permissão para editar este usuário.'
             )
         serializer.save()
@@ -146,15 +147,15 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         Personaliza a exclusão de usuário (soft delete)
         """
-        # Apenas coordenadores podem excluir usuários
-        if self.request.user.role != 'coordenador':
-            raise permissions.PermissionDenied(
-                'Apenas coordenadores podem excluir usuários.'
+        # Apenas técnicos e coordenadores podem excluir usuários
+        if self.request.user.role not in ['tecnico', 'coordenador']:
+            raise PermissionDenied(
+                'Apenas técnicos e coordenadores podem excluir usuários.'
             )
         
         # Não permite excluir a si mesmo
         if instance == self.request.user:
-            raise permissions.PermissionDenied(
+            raise PermissionDenied(
                 'Você não pode excluir sua própria conta.'
             )
         

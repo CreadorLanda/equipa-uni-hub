@@ -59,7 +59,7 @@ export const Emprestimos = () => {
   console.log('Loading:', loading);
 
   const [formData, setFormData] = useState({
-    userId: '',
+    userId: 'self',
     equipmentId: '',
     expectedReturnDate: '',
     expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
@@ -197,7 +197,7 @@ export const Emprestimos = () => {
     if (!selectedEquipment || !user) return;
 
     // Determina o usuário do empréstimo
-    const loanUserId = formData.userId || user.id;
+    const loanUserId = (formData.userId && formData.userId !== 'self') ? formData.userId : user.id;
 
     // Verifica se o usuário tem empréstimos atrasados
     const userOverdueLoans = loans.filter(loan => {
@@ -267,7 +267,7 @@ export const Emprestimos = () => {
 
   const resetForm = () => {
     setFormData({
-      userId: '',
+      userId: 'self',
       equipmentId: '',
       expectedReturnDate: '',
       expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
@@ -380,7 +380,7 @@ export const Emprestimos = () => {
                       <SelectValue placeholder="Selecione um utente (ou deixe vazio para você)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">
+                      <SelectItem value="self">
                         <span className="italic">Meu próprio empréstimo</span>
                       </SelectItem>
                       {users.map(u => (

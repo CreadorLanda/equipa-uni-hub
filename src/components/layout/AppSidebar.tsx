@@ -8,6 +8,7 @@ import {
   FileText,
   Search,
   Bell,
+  Users,
   Printer,
   LogOut,
   Menu
@@ -34,6 +35,7 @@ const menuItems = [
   { title: "Equipamentos", url: "/equipamentos", icon: MonitorSpeaker, roles: ['tecnico'] }, // Só técnico pode gerenciar
   { title: "Empréstimos", url: "/emprestimos", icon: HandCoins, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
   { title: "Reservas", url: "/reservas", icon: Calendar, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
+  { title: "Utilizadores", url: "/utilizadores", icon: Users, roles: ['tecnico'] }, // Só técnico pode gerenciar utilizadores
   { title: "Relatórios", url: "/relatorios", icon: FileText, roles: ['tecnico'] }, // Só técnico pode acessar relatórios
   { title: "Consultar", url: "/consultar", icon: Search, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
   { title: "Notificações", url: "/notificacoes", icon: Bell, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },

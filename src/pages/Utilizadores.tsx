@@ -116,6 +116,39 @@ export const Utilizadores = () => {
       return;
     }
 
+    // Validação de senha ao criar novo usuário
+    if (!editingUser && formData.password) {
+      if (formData.password.length < 8) {
+        toast({
+          title: "Senha inválida",
+          description: "A senha deve ter no mínimo 8 caracteres.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Verifica se a senha é só números
+      if (/^\d+$/.test(formData.password)) {
+        toast({
+          title: "Senha inválida",
+          description: "A senha não pode ser inteiramente numérica. Use letras, números e caracteres especiais.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Verifica se a senha é muito comum
+      const commonPasswords = ['12345678', '123456789', 'password', 'senha123', 'admin123'];
+      if (commonPasswords.includes(formData.password.toLowerCase())) {
+        toast({
+          title: "Senha inválida",
+          description: "Esta senha é muito comum. Escolha uma senha mais segura.",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
     setSubmitting(true);
     
     try {
@@ -144,6 +177,7 @@ export const Utilizadores = () => {
       } else {
         // Create new user
         const newUser = await usersAPI.create({
+          username: formData.email, // Backend espera username
           name: formData.name,
           email: formData.email,
           password: formData.password,
@@ -167,9 +201,22 @@ export const Utilizadores = () => {
       resetForm();
     } catch (error) {
       console.error('Erro ao salvar utilizador:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      
+      let description = "Não foi possível salvar o utilizador. Verifique os dados.";
+      
+      // Parse erros específicos do backend
+      if (errorMessage.includes('username')) {
+        description = "Erro no nome de usuário. Verifique se o email é válido.";
+      } else if (errorMessage.includes('senha é muito comum') || errorMessage.includes('inteiramente numérica')) {
+        description = "Senha inválida. Use uma senha com pelo menos 8 caracteres, incluindo letras e números.";
+      } else if (errorMessage.includes('email')) {
+        description = "Este email já está em uso ou é inválido.";
+      }
+      
       toast({
         title: "Erro ao salvar",
-        description: "Não foi possível salvar o utilizador. Verifique os dados.",
+        description,
         variant: "destructive"
       });
     } finally {
@@ -347,8 +394,11 @@ export const Utilizadores = () => {
                       value={formData.password}
                       onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                       required={!editingUser}
-                      placeholder="Mínimo 8 caracteres"
+                      placeholder="Ex: Senha@123"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Mínimo 8 caracteres. Deve conter letras e números. Evite senhas comuns como "12345678".
+                    </p>
                   </div>
                 )}
 
