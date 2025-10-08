@@ -245,3 +245,32 @@ Obrigado por devolver no prazo!
             message=message,
             action_required=False
         )
+    
+    @classmethod
+    def send_pickup_confirmed_notification(cls, loan: Loan):
+        """
+        Envia notificação quando técnico confirma levantamento
+        """
+        equipment_name = loan.equipment_name
+        tecnico_name = loan.tecnico_entrega.name if loan.tecnico_entrega else 'Técnico'
+        return_datetime = cls._get_loan_return_datetime(loan)
+        return_date_str = return_datetime.strftime('%d/%m/%Y às %H:%M')
+        
+        title = "✅ Levantamento confirmado"
+        message = f"""
+Empréstimo #{loan.id}
+Equipamento: {equipment_name}
+Entregue por: {tecnico_name}
+Data/Hora de devolução: {return_date_str}
+
+O técnico {tecnico_name} confirmou que você levantou o equipamento.
+Lembre-se de devolvê-lo no prazo estabelecido.
+        """.strip()
+        
+        cls.create_notification(
+            user=loan.user,
+            notification_type='info',
+            title=title,
+            message=message,
+            action_required=False
+        )

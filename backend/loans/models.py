@@ -84,6 +84,26 @@ class Loan(models.Model):
         verbose_name='Criado por'
     )
     
+    # Campos para rastreamento do técnico que entregou o equipamento
+    tecnico_entrega = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='loans_entregues',
+        limit_choices_to={'role': 'tecnico'},
+        verbose_name='Técnico que entregou'
+    )
+    confirmado_levantamento = models.BooleanField(
+        default=False,
+        verbose_name='Levantamento confirmado'
+    )
+    data_confirmacao_levantamento = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Data de confirmação do levantamento'
+    )
+    
     class Meta:
         db_table = 'loans'
         verbose_name = 'Empréstimo'
@@ -137,5 +157,148 @@ class Loan(models.Model):
         if not self.pk and self.status == 'ativo':
             self.equipment.status = 'emprestado'
             self.equipment.save()
-            
+        
         super().save(*args, **kwargs)
+
+
+class LoanRequest(models.Model):
+    """
+    Modelo de solicitação de empréstimo para grandes quantidades (>5 equipamentos)
+    Requer aprovação da reitoria
+    """
+    REQUEST_STATUS_CHOICES = [
+        ('pendente', 'Pendente'),
+        ('autorizado', 'Autorizado'),
+        ('rejeitado', 'Rejeitado'),
+    ]
+    
+    id = models.AutoField(primary_key=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='loan_requests',
+        verbose_name='Utente'
+    )
+    equipments = models.ManyToManyField(
+        'equipment.Equipment',
+        related_name='loan_requests',
+        verbose_name='Equipamentos solicitados'
+    )
+    quantity = models.IntegerField(
+        verbose_name='Quantidade de equipamentos'
+    )
+    purpose = models.TextField(
+        verbose_name='Finalidade'
+    )
+    expected_return_date = models.DateField(
+        verbose_name='Data Prevista de Devolução'
+    )
+    expected_return_time = models.TimeField(
+        blank=True,
+        null=True,
+        verbose_name='Hora Prevista de Devolução'
+    )
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Observações'
+    )
+    
+    # Status da solicitação
+    status = models.CharField(
+        max_length=20,
+        choices=REQUEST_STATUS_CHOICES,
+        default='pendente',
+        verbose_name='Status'
+    )
+    
+    # Aprovação/Rejeição pela reitoria
+    aprovado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='loan_requests_aprovados',
+        limit_choices_to={'role': 'coordenador'},
+        verbose_name='Aprovado/Rejeitado por'
+    )
+    motivo_decisao = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Motivo da aprovação/rejeição'
+    )
+    data_decisao = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Data da decisão'
+    )
+    
+    # Técnico responsável pela solicitação
+    tecnico_responsavel = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='loan_requests_recebidas',
+        limit_choices_to={'role': 'tecnico'},
+        verbose_name='Técnico responsável'
+    )
+    
+    # Levantamento dos equipamentos
+    data_levantamento = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Data de levantamento'
+    )
+    confirmado_pelo_tecnico = models.BooleanField(
+        default=False,
+        verbose_name='Levantamento confirmado pelo técnico'
+    )
+    
+    # Campos de auditoria
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'loan_requests'
+        verbose_name = 'Solicitação de Empréstimo'
+        verbose_name_plural = 'Solicitações de Empréstimos'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Solicitação #{self.id} - {self.user.name} ({self.quantity} equipamentos)"
+    
+    @property
+    def user_name(self):
+        return self.user.name
+    
+    @property
+    def tecnico_name(self):
+        return self.tecnico_responsavel.name if self.tecnico_responsavel else None
+    
+    @property
+    def aprovador_name(self):
+        return self.aprovado_por.name if self.aprovado_por else None
+    
+    def aprovar(self, aprovador, motivo=''):
+        """Aprova a solicitação"""
+        self.status = 'autorizado'
+        self.aprovado_por = aprovador
+        self.motivo_decisao = motivo
+        self.data_decisao = timezone.now()
+        self.save()
+    
+    def rejeitar(self, rejeitador, motivo):
+        """Rejeita a solicitação"""
+        self.status = 'rejeitado'
+        self.aprovado_por = rejeitador
+        self.motivo_decisao = motivo
+        self.data_decisao = timezone.now()
+        self.save()
+    
+    def confirmar_levantamento(self, tecnico):
+        """Confirma que o utente levantou os equipamentos"""
+        self.confirmado_pelo_tecnico = True
+        self.data_levantamento = timezone.now()
+        self.tecnico_responsavel = tecnico
+        self.save()

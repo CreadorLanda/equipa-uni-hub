@@ -10,7 +10,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Loan
 from .serializers import (
     LoanSerializer, LoanListSerializer, LoanReturnSerializer,
-    LoanStatsSerializer
+    LoanStatsSerializer, LoanConfirmPickupSerializer
 )
 from .services import LoanNotificationService
 
@@ -278,3 +278,62 @@ class LoanViewSet(viewsets.ModelViewSet):
         
         serializer = LoanListSerializer(my_loans, many=True)
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def confirmar_levantamento(self, request, pk=None):
+        """
+        Confirma que o utente levantou o equipamento (apenas técnicos)
+        """
+        loan = self.get_object()
+        
+        # Verifica permissões
+        if request.user.role not in ['tecnico', 'secretario', 'coordenador']:
+            return Response(
+                {'error': 'Apenas técnicos podem confirmar o levantamento.'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        if loan.status not in ['ativo', 'atrasado']:
+            return Response(
+                {'error': 'Este empréstimo não está ativo.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if loan.confirmado_levantamento:
+            return Response(
+                {'error': 'O levantamento já foi confirmado.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = LoanConfirmPickupSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            # Confirma o levantamento
+            loan.tecnico_entrega = request.user
+            loan.confirmado_levantamento = True
+            loan.data_confirmacao_levantamento = timezone.now()
+            
+            # Adiciona observações se fornecidas
+            notes = serializer.validated_data.get('notes', '')
+            if notes:
+                existing_notes = loan.notes or ''
+                loan.notes = f"{existing_notes}\n\nLevantamento confirmado: {notes}".strip()
+            
+            loan.save()
+            
+            # Envia notificação
+            try:
+                LoanNotificationService.send_pickup_confirmed_notification(loan)
+            except Exception as e:
+                print(f"Erro ao enviar notificação de confirmação: {e}")
+            
+            loan_serializer = LoanSerializer(loan)
+            return Response(
+                {
+                    'message': 'Levantamento confirmado com sucesso.',
+                    'loan': loan_serializer.data
+                }, 
+                status=status.HTTP_200_OK
+            )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

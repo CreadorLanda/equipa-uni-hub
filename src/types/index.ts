@@ -46,6 +46,10 @@ export interface Loan {
   notes?: string;
   createdBy?: string;
   createdByUserName?: string;
+  tecnicoEntrega?: string;
+  tecnicoEntregaName?: string;
+  confirmadoLevantamento: boolean;
+  dataConfirmacaoLevantamento?: string;
 }
 
 export type LoanStatus = 'ativo' | 'atrasado' | 'concluido' | 'cancelado';
@@ -64,6 +68,32 @@ export interface Reservation {
 }
 
 export type ReservationStatus = 'ativa' | 'confirmada' | 'cancelada' | 'expirada';
+
+export interface LoanRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  equipments: string[];
+  equipmentsDetail?: Equipment[];
+  quantity: number;
+  purpose: string;
+  expectedReturnDate: string;
+  expectedReturnTime?: string;
+  notes?: string;
+  status: LoanRequestStatus;
+  aprovadoPor?: string;
+  aprovadorName?: string;
+  motivoDecisao?: string;
+  dataDecisao?: string;
+  tecnicoResponsavel?: string;
+  tecnicoName?: string;
+  dataLevantamento?: string;
+  confirmadoPeloTecnico: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type LoanRequestStatus = 'pendente' | 'autorizado' | 'rejeitado';
 
 export interface Notification {
   id: string;

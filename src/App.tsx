@@ -17,6 +17,7 @@ import { Notificacoes } from "@/pages/Notificacoes";
 import { Utilizadores } from "@/pages/Utilizadores";
 import { Perfil } from "@/pages/Perfil";
 import { Historico } from "@/pages/Historico";
+import { Solicitacoes } from "@/pages/Solicitacoes";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
@@ -81,6 +82,11 @@ const App = () => (
             <Route path="/historico" element={
               <ProtectedRoute>
                 <Historico />
+              </ProtectedRoute>
+            } />
+            <Route path="/solicitacoes" element={
+              <ProtectedRoute>
+                <Solicitacoes />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />

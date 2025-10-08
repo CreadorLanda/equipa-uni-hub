@@ -192,9 +192,46 @@ export const loansAPI = {
     
   returnEquipment: (id: string, data?: any) => 
     api.post(`/loans/${id}/return_equipment/`, data),
+  
+  confirmarLevantamento: (id: string, data?: any) => 
+    api.post(`/loans/${id}/confirmar_levantamento/`, data),
     
   stats: () => 
     api.get('/loans/stats/'),
+};
+
+export const loanRequestsAPI = {
+  list: (params?: Record<string, any>) => {
+    const queryParams = params ? new URLSearchParams(params).toString() : '';
+    return api.get(`/loan-requests/${queryParams ? '?' + queryParams : ''}`);
+  },
+  
+  get: (id: string) => 
+    api.get(`/loan-requests/${id}/`),
+    
+  create: (data: any) => 
+    api.post('/loan-requests/', data),
+    
+  update: (id: string, data: any) => 
+    api.put(`/loan-requests/${id}/`, data),
+    
+  delete: (id: string) => 
+    api.delete(`/loan-requests/${id}/`),
+  
+  pendentes: () => 
+    api.get('/loan-requests/pendentes/'),
+  
+  autorizadas: () => 
+    api.get('/loan-requests/autorizadas/'),
+    
+  aprovar: (id: string, motivo?: string) => 
+    api.post(`/loan-requests/${id}/aprovar/`, { motivo }),
+    
+  rejeitar: (id: string, motivo: string) => 
+    api.post(`/loan-requests/${id}/rejeitar/`, { motivo }),
+    
+  confirmarLevantamento: (id: string, notes?: string) => 
+    api.post(`/loan-requests/${id}/confirmar_levantamento/`, { notes }),
 };
 
 export const reservationsAPI = {
