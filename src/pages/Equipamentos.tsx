@@ -20,7 +20,8 @@ import {
   Projector,
   Printer,
   Monitor,
-  Loader2
+  Loader2,
+  Eye
 } from 'lucide-react';
 import { Equipment, EquipmentType, EquipmentStatus } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -53,6 +54,8 @@ export const Equipamentos = () => {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
+  const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
@@ -261,6 +264,21 @@ export const Equipamentos = () => {
       toast({
         title: "Erro ao alterar status",
         description: "Não foi possível alterar o status do equipamento.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleViewDetails = async (equipment: Equipment) => {
+    try {
+      const details = await equipmentAPI.get(equipment.id);
+      setSelectedEquipment(details);
+      setShowDetailsDialog(true);
+    } catch (error) {
+      console.error('Erro ao carregar detalhes:', error);
+      toast({
+        title: "Erro ao carregar detalhes",
+        description: "Não foi possível carregar os detalhes do equipamento.",
         variant: "destructive"
       });
     }
@@ -585,6 +603,14 @@ export const Equipamentos = () => {
                   <TableCell>{equipment.location}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewDetails(equipment)}
+                        title="Ver detalhes do equipamento"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
                       {canManageEquipment() && (
                         <Button
                           variant="outline"
@@ -616,11 +642,6 @@ export const Equipamentos = () => {
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
-                      {!canManageEquipment() && !canDeleteEquipment() && (
-                        <span className="text-sm text-muted-foreground italic">
-                          Sem permissões
-                        </span>
-                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -630,6 +651,114 @@ export const Equipamentos = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Equipment Details Dialog */}
+      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Equipamento</DialogTitle>
+            <DialogDescription>
+              Informações completas sobre o equipamento
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedEquipment && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Marca</Label>
+                  <p className="font-medium">{selectedEquipment.brand}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Modelo</Label>
+                  <p className="font-medium">{selectedEquipment.model}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Tipo</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    {getTypeIcon(selectedEquipment.type)}
+                    <span className="font-medium capitalize">{selectedEquipment.type}</span>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <div className="mt-1">
+                    {getStatusBadge(selectedEquipment.status)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Número de Série</Label>
+                  <p className="font-mono font-medium">{selectedEquipment.serialNumber}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Data de Aquisição</Label>
+                  <p className="font-medium">
+                    {selectedEquipment.acquisitionDate 
+                      ? new Date(selectedEquipment.acquisitionDate).toLocaleDateString('pt-BR')
+                      : '-'}
+                  </p>
+                </div>
+              </div>
+
+              {selectedEquipment.location && (
+                <div>
+                  <Label className="text-muted-foreground">Localização</Label>
+                  <p className="font-medium">{selectedEquipment.location}</p>
+                </div>
+              )}
+
+              {selectedEquipment.description && (
+                <div>
+                  <Label className="text-muted-foreground">Descrição</Label>
+                  <p className="text-sm mt-1">{selectedEquipment.description}</p>
+                </div>
+              )}
+
+              <div className="pt-4 border-t">
+                <Label className="text-muted-foreground text-xs">Metadados</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2 text-xs text-muted-foreground">
+                  <div>
+                    <span>ID: </span>
+                    <span className="font-mono">{selectedEquipment.id}</span>
+                  </div>
+                  <div>
+                    <span>Última atualização: </span>
+                    <span>
+                      {selectedEquipment.updatedAt 
+                        ? new Date(selectedEquipment.updatedAt).toLocaleString('pt-BR')
+                        : '-'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>
+              Fechar
+            </Button>
+            {canManageEquipment() && selectedEquipment && (
+              <Button 
+                onClick={() => {
+                  setShowDetailsDialog(false);
+                  handleEdit(selectedEquipment);
+                }}
+                className="bg-gradient-primary"
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Editar
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

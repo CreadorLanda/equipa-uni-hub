@@ -14,6 +14,8 @@ from .serializers import (
 )
 from notifications.models import Notification
 from .services import LoanNotificationService
+from .pdf_service import generate_loan_request_pdf
+from django.http import HttpResponse
 
 
 class LoanRequestViewSet(viewsets.ModelViewSet):
@@ -331,6 +333,36 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
             )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def download_pdf(self, request, pk=None):
+        """
+        Generates and downloads PDF for special loan request
+        """
+        loan_request = self.get_object()
+        
+        # Verify permissions - only coordenador, tecnico or the requester can download
+        if request.user.role not in ['coordenador', 'tecnico', 'secretario'] and loan_request.user != request.user:
+            return Response(
+                {'error': 'You do not have permission to download this PDF.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            # Generate PDF
+            pdf_buffer = generate_loan_request_pdf(loan_request)
+            
+            # Create HTTP response with PDF
+            response = HttpResponse(pdf_buffer.read(), content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="solicitacao_{loan_request.id}.pdf"'
+            
+            return response
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Error generating PDF: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     def _send_new_request_notification(self, loan_request):
         """

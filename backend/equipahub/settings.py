@@ -217,6 +217,13 @@ JWT_EXPIRATION_DELTA = 60 * 60 * 24 * 7  # 7 days
 # Email settings (for notifications)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
+# Loan Request Limits Configuration
+# Requests exceeding these limits require special approval from coordenador (reitoria)
+LOAN_REQUEST_LIMITS = {
+    'max_equipment_count': config('LOAN_MAX_EQUIPMENT', default=50, cast=int),  # Maximum equipment without special approval
+    'max_days': config('LOAN_MAX_DAYS', default=1, cast=int),  # Maximum days without special approval
+}
+
 # Logging
 LOGGING = {
     'version': 1,

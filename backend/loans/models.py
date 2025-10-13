@@ -18,6 +18,7 @@ class Loan(models.Model):
     Modelo de empréstimo baseado no interface TypeScript Loan
     """
     LOAN_STATUS_CHOICES = [
+        ('pendente', 'Pendente Levantamento'),  # Aguardando confirmação do técnico
         ('ativo', 'Ativo'),
         ('atrasado', 'Atrasado'),
         ('concluido', 'Concluído'),
@@ -61,7 +62,7 @@ class Loan(models.Model):
     status = models.CharField(
         max_length=20,
         choices=LOAN_STATUS_CHOICES,
-        default='ativo',
+        default='pendente',  # Alterado: empréstimo começa pendente até técnico confirmar
         verbose_name='Status'
     )
     purpose = models.TextField(
@@ -121,6 +122,48 @@ class Loan(models.Model):
     def equipment_name(self):
         return str(self.equipment)
     
+    def get_all_equipments(self):
+        """
+        Retorna todos os equipamentos deste empréstimo
+        (equipamento principal + acessórios via LoanEquipment)
+        """
+        # Equipamento principal (campo direto)
+        equipments = [{
+            'id': self.equipment.id,
+            'name': str(self.equipment),
+            'is_primary': True,
+            'returned': False
+        }]
+        
+        # Acessórios adicionais (via LoanEquipment)
+        for loan_eq in self.loan_equipments.all():
+            equipments.append({
+                'id': loan_eq.equipment.id,
+                'name': str(loan_eq.equipment),
+                'is_primary': loan_eq.is_primary,
+                'returned': loan_eq.returned
+            })
+        
+        return equipments
+    
+    def confirmar_levantamento(self, tecnico):
+        """
+        Técnico confirma que utente levantou o(s) equipamento(s)
+        """
+        self.confirmado_levantamento = True
+        self.tecnico_entrega = tecnico
+        self.data_confirmacao_levantamento = timezone.now()
+        self.status = 'ativo'  # Muda de 'pendente' para 'ativo'
+        self.save()
+        
+        # Atualiza status de todos os equipamentos para 'emprestado'
+        self.equipment.status = 'emprestado'
+        self.equipment.save()
+        
+        for loan_eq in self.loan_equipments.all():
+            loan_eq.equipment.status = 'emprestado'
+            loan_eq.equipment.save()
+    
     @property
     def is_overdue(self):
         """Verifica se o empréstimo está atrasado"""
@@ -149,16 +192,61 @@ class Loan(models.Model):
         self.equipment.save()
     
     def save(self, *args, **kwargs):
-        # Atualiza automaticamente o status se estiver atrasado
+        # Atualiza automaticamente o status se estiver atrasado (apenas se já estiver ativo)
         if self.status == 'ativo' and self.is_overdue:
             self.status = 'atrasado'
         
-        # Atualiza o status do equipamento quando o empréstimo é criado
-        if not self.pk and self.status == 'ativo':
-            self.equipment.status = 'emprestado'
-            self.equipment.save()
+        # REMOVIDO: Não muda status do equipamento automaticamente
+        # Status só muda quando técnico confirmar levantamento via confirmar_levantamento()
         
         super().save(*args, **kwargs)
+
+
+class LoanEquipment(models.Model):
+    """
+    Modelo intermediário para relacionar múltiplos equipamentos a um empréstimo
+    Permite emprestar equipamento principal + acessórios juntos
+    """
+    loan = models.ForeignKey(
+        'Loan',
+        on_delete=models.CASCADE,
+        related_name='loan_equipments',
+        verbose_name='Empréstimo'
+    )
+    equipment = models.ForeignKey(
+        'equipment.Equipment',
+        on_delete=models.CASCADE,
+        related_name='loan_items',
+        verbose_name='Equipamento'
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        verbose_name='É o equipamento principal'
+    )
+    returned = models.BooleanField(
+        default=False,
+        verbose_name='Devolvido'
+    )
+    return_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Data de devolução'
+    )
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Observações'
+    )
+    
+    class Meta:
+        db_table = 'loan_equipments'
+        verbose_name = 'Equipamento do Empréstimo'
+        verbose_name_plural = 'Equipamentos dos Empréstimos'
+        unique_together = ['loan', 'equipment']  # Evita duplicação
+    
+    def __str__(self):
+        tipo = "Principal" if self.is_primary else "Acessório"
+        return f"{tipo}: {self.equipment} (Empréstimo #{self.loan.id})"
 
 
 class LoanRequest(models.Model):

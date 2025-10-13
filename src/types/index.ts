@@ -52,7 +52,7 @@ export interface Loan {
   dataConfirmacaoLevantamento?: string;
 }
 
-export type LoanStatus = 'ativo' | 'atrasado' | 'concluido' | 'cancelado';
+export type LoanStatus = 'pendente' | 'ativo' | 'atrasado' | 'concluido' | 'cancelado';
 
 export interface Reservation {
   id: string;

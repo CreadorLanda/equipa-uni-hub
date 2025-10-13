@@ -29,6 +29,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { loansAPI, equipmentAPI, usersAPI } from '@/lib/api';
 
 const statusOptions: { value: LoanStatus; label: string; color: string }[] = [
+  { value: 'pendente', label: 'Pendente Levantamento', color: 'bg-warning text-warning-foreground' },
   { value: 'ativo', label: 'Ativo', color: 'bg-info text-info-foreground' },
   { value: 'atrasado', label: 'Atrasado', color: 'bg-destructive text-destructive-foreground' },
   { value: 'concluido', label: 'Concluído', color: 'bg-success text-success-foreground' },
@@ -108,7 +109,9 @@ export const Emprestimos = () => {
 
   // Verificações de permissão
   const canCreateLoan = () => {
-    return user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role);
+    // APENAS técnico pode criar empréstimos diretos
+    // Docentes/secretários devem usar solicitações ou reservas
+    return user?.role === 'tecnico';
   };
 
   const canReturnLoan = (loan: Loan) => {
@@ -247,10 +250,34 @@ export const Emprestimos = () => {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       
       let description = "Não foi possível registrar o empréstimo.";
+      const equipmentUnavailable = errorMessage.includes('equipamento não está disponível') || 
+                                   errorMessage.includes('not available') ||
+                                   errorMessage.includes('unavailable');
+      
       if (errorMessage.includes('Data de devolução deve ser posterior')) {
         description = "A data de devolução deve ser posterior à data de hoje.";
-      } else if (errorMessage.includes('equipamento não está disponível')) {
-        description = "O equipamento selecionado não está mais disponível.";
+      } else if (equipmentUnavailable) {
+        description = "O equipamento selecionado não está disponível no momento. Que tal criar uma reserva? Você será notificado quando o equipamento estiver disponível.";
+        
+        // Show special toast with action button
+        toast({
+          title: "Equipamento Indisponível",
+          description,
+          variant: "default",
+          action: (
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={() => {
+                window.location.href = '/reservas';
+              }}
+            >
+              Criar Reserva
+            </Button>
+          ),
+        });
+        setSubmitting(false);
+        return;
       } else if (errorMessage.includes('400')) {
         description = "Dados inválidos. Verifique se todos os campos estão preenchidos corretamente.";
       }

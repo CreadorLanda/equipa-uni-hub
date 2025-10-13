@@ -80,13 +80,16 @@ class LoanViewSet(viewsets.ModelViewSet):
         """
         Personaliza a criação de empréstimo
         """
-        # Docentes só podem criar empréstimos para si mesmos
-        if self.request.user.role == 'docente':
-            loan = serializer.save(user=self.request.user)
-        else:
-            loan = serializer.save()
+        # APENAS técnicos podem criar empréstimos diretos
+        if self.request.user.role != 'tecnico':
+            raise permissions.PermissionDenied(
+                'Apenas técnicos podem criar empréstimos. Docentes devem usar solicitações ou reservas.'
+            )
         
-        # Envia notificação de empréstimo criado
+        # Técnico define para qual usuário é o empréstimo
+        loan = serializer.save(created_by=self.request.user)
+        
+        # Envia notificação de empréstimo criado (pendente)
         try:
             LoanNotificationService.send_loan_created_notification(loan)
         except Exception as e:
@@ -283,6 +286,7 @@ class LoanViewSet(viewsets.ModelViewSet):
     def confirmar_levantamento(self, request, pk=None):
         """
         Confirma que o utente levantou o equipamento (apenas técnicos)
+        Muda status de 'pendente' para 'ativo'
         """
         loan = self.get_object()
         
@@ -293,9 +297,10 @@ class LoanViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        if loan.status not in ['ativo', 'atrasado']:
+        # Verifica se está pendente ou se já está confirmado
+        if loan.status not in ['pendente', 'ativo', 'atrasado']:
             return Response(
-                {'error': 'Este empréstimo não está ativo.'}, 
+                {'error': 'Este empréstimo não pode ser confirmado.'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -308,18 +313,16 @@ class LoanViewSet(viewsets.ModelViewSet):
         serializer = LoanConfirmPickupSerializer(data=request.data)
         
         if serializer.is_valid():
-            # Confirma o levantamento
-            loan.tecnico_entrega = request.user
-            loan.confirmado_levantamento = True
-            loan.data_confirmacao_levantamento = timezone.now()
+            # Usa o método do modelo para confirmar levantamento
+            # Isso muda status de 'pendente' para 'ativo' e atualiza equipamentos
+            loan.confirmar_levantamento(request.user)
             
             # Adiciona observações se fornecidas
             notes = serializer.validated_data.get('notes', '')
             if notes:
                 existing_notes = loan.notes or ''
                 loan.notes = f"{existing_notes}\n\nLevantamento confirmado: {notes}".strip()
-            
-            loan.save()
+                loan.save()
             
             # Envia notificação
             try:
@@ -330,7 +333,7 @@ class LoanViewSet(viewsets.ModelViewSet):
             loan_serializer = LoanSerializer(loan)
             return Response(
                 {
-                    'message': 'Levantamento confirmado com sucesso.',
+                    'message': 'Levantamento confirmado com sucesso. Empréstimo agora está ativo.',
                     'loan': loan_serializer.data
                 }, 
                 status=status.HTTP_200_OK
