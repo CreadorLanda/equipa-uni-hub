@@ -45,10 +45,12 @@ export const Emprestimos = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [showTicketDialog, setShowTicketDialog] = useState(false);
   const [showEquipmentDetailsDialog, setShowEquipmentDetailsDialog] = useState(false);
+  const [showConfirmPickupDialog, setShowConfirmPickupDialog] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [selectedEquipmentDetails, setSelectedEquipmentDetails] = useState<Equipment | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmPickupNotes, setConfirmPickupNotes] = useState('');
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -116,6 +118,11 @@ export const Emprestimos = () => {
 
   const canReturnLoan = (loan: Loan) => {
     // Apenas técnico/secretário/coordenador podem devolver
+    return user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role);
+  };
+
+  const canConfirmPickup = () => {
+    // Apenas técnico/secretário/coordenador podem confirmar levantamento
     return user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role);
   };
 
@@ -364,6 +371,60 @@ export const Emprestimos = () => {
     }
   };
 
+  const handleConfirmPickup = async (loan: Loan) => {
+    if (!canConfirmPickup()) {
+      toast({
+        title: "Acesso negado",
+        description: "Apenas técnicos podem confirmar levantamentos.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSelectedLoan(loan);
+    setShowConfirmPickupDialog(true);
+  };
+
+  const confirmPickup = async () => {
+    if (!selectedLoan) return;
+
+    setSubmitting(true);
+    try {
+      const updatedLoan = await loansAPI.confirmarLevantamento(selectedLoan.id, {
+        notes: confirmPickupNotes
+      });
+      
+      setLoans(prev => prev.map(l => 
+        l.id === selectedLoan.id 
+          ? { ...l, status: 'ativo' as LoanStatus }
+          : l
+      ));
+      
+      toast({
+        title: "Levantamento confirmado!",
+        description: `O empréstimo foi ativado com sucesso. O equipamento agora está emprestado para ${selectedLoan.userName || selectedLoan.user_name}.`,
+      });
+      
+      setShowConfirmPickupDialog(false);
+      setSelectedLoan(null);
+      setConfirmPickupNotes('');
+      
+      // Recarrega lista para atualizar status
+      await loadData();
+      
+    } catch (error) {
+      console.error('Erro ao confirmar levantamento:', error);
+      toast({
+        title: "Erro ao confirmar levantamento",
+        description: "Não foi possível confirmar o levantamento do equipamento.",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const pendingLoans = filteredLoans.filter(loan => loan.status === 'pendente');
   const activeLoans = filteredLoans.filter(loan => loan.status === 'ativo' || loan.status === 'atrasado');
   const completedLoans = filteredLoans.filter(loan => loan.status === 'concluido');
   const overdueLoans = filteredLoans.filter(loan => isOverdue(loan));
@@ -505,7 +566,17 @@ export const Emprestimos = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="border-l-4 border-l-warning">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pendente Confirmação</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-warning">{pendingLoans.length}</div>
+          </CardContent>
+        </Card>
+        
         <Card className="border-l-4 border-l-info">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Empréstimos Ativos</CardTitle>
@@ -582,12 +653,109 @@ export const Emprestimos = () => {
       </Card>
 
       {/* Loans Table */}
-      <Tabs defaultValue="ativos" className="space-y-4">
+      <Tabs defaultValue={pendingLoans.length > 0 ? "pendentes" : "ativos"} className="space-y-4">
         <TabsList>
+          {pendingLoans.length > 0 && (
+            <TabsTrigger value="pendentes">Aguardando Confirmação ({pendingLoans.length})</TabsTrigger>
+          )}
           <TabsTrigger value="ativos">Ativos ({activeLoans.length})</TabsTrigger>
           <TabsTrigger value="concluidos">Concluídos ({completedLoans.length})</TabsTrigger>
           <TabsTrigger value="todos">Todos ({filteredLoans.length})</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="pendentes">
+          <Card>
+            <CardHeader>
+              <CardTitle>Empréstimos Aguardando Confirmação</CardTitle>
+              <CardDescription>
+                Empréstimos que foram registrados mas ainda não foram levantados pelos utentes
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin mr-2" />
+                  <span>Carregando empréstimos...</span>
+                </div>
+              ) : pendingLoans.length === 0 ? (
+                <div className="text-center py-12">
+                  <Clock className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-medium mb-2">Nenhum empréstimo pendente</h3>
+                  <p className="text-muted-foreground">
+                    Todos os empréstimos foram confirmados.
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Usuário</TableHead>
+                      <TableHead>Equipamento</TableHead>
+                      <TableHead>Data/Hora de Início</TableHead>
+                      <TableHead>Data/Hora Prevista</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingLoans.map((loan) => (
+                      <TableRow key={loan.id} className="bg-warning/10">
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{loan.userName || loan.user_name}</p>
+                            <p className="text-sm text-muted-foreground">{loan.purpose}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <p className="font-medium">{loan.equipmentName || loan.equipment_name}</p>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{formatDate(loan.startDate || loan.start_date)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {(loan.startTime || loan.start_time) ? (loan.startTime || loan.start_time) : 'Hora não definida'}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span>
+                              {formatDate(loan.expectedReturnDate || (loan as any).expected_return_date)}
+                              {(loan.expectedReturnTime || (loan as any).expected_return_time) && (
+                                <span className="text-sm text-muted-foreground"> {loan.expectedReturnTime || (loan as any).expected_return_time}</span>
+                              )}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {getStatusBadge(loan.status)}
+                        </TableCell>
+                        <TableCell>
+                          {canConfirmPickup() ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleConfirmPickup(loan)}
+                              className="bg-warning text-warning-foreground hover:bg-warning/90"
+                              title="Confirmar que o utente levantou o equipamento"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Confirmar Levantamento
+                            </Button>
+                          ) : (
+                            <span className="text-sm text-muted-foreground italic">
+                              Aguardando confirmação do técnico
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="ativos">
           <Card>
@@ -967,6 +1135,86 @@ export const Emprestimos = () => {
             <Button onClick={() => window.print()}>
               <Printer className="w-4 h-4 mr-2" />
               Imprimir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Pickup Dialog */}
+      <Dialog open={showConfirmPickupDialog} onOpenChange={setShowConfirmPickupDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-warning" />
+              Confirmar Levantamento de Equipamento
+            </DialogTitle>
+            <DialogDescription>
+              Confirme que o utente levantou o equipamento. O empréstimo passará de "Pendente" para "Ativo".
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedLoan && (
+            <div className="space-y-4">
+              <div className="p-4 border rounded-lg bg-muted space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Utente:</span>
+                  <span className="font-medium">{selectedLoan.userName || selectedLoan.user_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Equipamento:</span>
+                  <span className="font-medium">{selectedLoan.equipmentName || selectedLoan.equipment_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Devolução prevista:</span>
+                  <span className="font-medium">
+                    {formatDate(selectedLoan.expectedReturnDate || (selectedLoan as any).expected_return_date)}
+                    {(selectedLoan.expectedReturnTime || (selectedLoan as any).expected_return_time) && 
+                      ` às ${selectedLoan.expectedReturnTime || (selectedLoan as any).expected_return_time}`}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirmNotes">Observações (opcional)</Label>
+                <Textarea
+                  id="confirmNotes"
+                  placeholder="Adicione observações sobre o estado do equipamento ou condições do levantamento..."
+                  value={confirmPickupNotes}
+                  onChange={(e) => setConfirmPickupNotes(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowConfirmPickupDialog(false);
+                setSelectedLoan(null);
+                setConfirmPickupNotes('');
+              }}
+              disabled={submitting}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={confirmPickup}
+              disabled={submitting}
+              className="bg-warning text-warning-foreground hover:bg-warning/90"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Confirmando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Confirmar Levantamento
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
