@@ -12,10 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 from decouple import config
-import pymysql
-
-# Configuração do PyMySQL para funcionar como MySQLdb
-pymysql.install_as_MySQLdb()
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -94,15 +91,12 @@ WSGI_APPLICATION = 'equipahub.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
+        'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'railway',
-        'USER': 'root',
-        'PASSWORD': 'AIPqaGeIRCalBCjyobVNBOANuULuYRux',
-        'HOST': 'shortline.proxy.rlwy.net',
-        'PORT': '11784',
-        'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
+        'USER': 'postgres',
+        'PASSWORD': 'AOXadGMBgTWaoLXjDgJAUOsnILukNQdQ',
+        'HOST': 'ballast.proxy.rlwy.net',
+        'PORT': '33999',
     }
 }
 
