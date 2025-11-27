@@ -11,7 +11,8 @@ import {
   Users,
   Printer,
   LogOut,
-  Menu
+  Menu,
+  Package
 } from "lucide-react";
 
 import {
@@ -35,6 +36,7 @@ const menuItems = [
   { title: "Equipamentos", url: "/equipamentos", icon: MonitorSpeaker, roles: ['tecnico'] }, // Só técnico pode gerenciar
   { title: "Empréstimos", url: "/emprestimos", icon: HandCoins, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
   { title: "Reservas", url: "/reservas", icon: Calendar, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
+  { title: "Pacotes", url: "/pacotes", icon: Package, roles: ['tecnico', 'secretario', 'coordenador'] },
   { title: "Solicitações", url: "/solicitacoes", icon: FileText, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
   { title: "Utilizadores", url: "/utilizadores", icon: Users, roles: ['tecnico'] }, // Só técnico pode gerenciar utilizadores
   { title: "Relatórios", url: "/relatorios", icon: FileText, roles: ['tecnico'] }, // Só técnico pode acessar relatórios
@@ -53,7 +55,7 @@ export function AppSidebar() {
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? "bg-primary  font-medium" : "text-foreground hover:bg-primary/10 hover:text-primary";
 
-  const filteredItems = menuItems.filter(item => 
+  const filteredItems = menuItems.filter(item =>
     user?.role && item.roles.includes(user.role)
   );
 
@@ -86,9 +88,9 @@ export function AppSidebar() {
               {filteredItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      end 
+                    <NavLink
+                      to={item.url}
+                      end
                       className={getNavCls}
                       title={collapsed ? item.title : undefined}
                     >

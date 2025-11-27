@@ -91,12 +91,8 @@ WSGI_APPLICATION = 'equipahub.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'railway',
-        'USER': 'postgres',
-        'PASSWORD': 'AOXadGMBgTWaoLXjDgJAUOsnILukNQdQ',
-        'HOST': 'ballast.proxy.rlwy.net',
-        'PORT': '33999',
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 

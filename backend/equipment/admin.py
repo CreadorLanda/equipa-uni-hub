@@ -96,3 +96,58 @@ class EquipmentAdmin(admin.ModelAdmin):
                 f'{updated} equipamento(s) marcado(s) como inativo(s).'
             )
     mark_as_inactive.short_description = "Marcar como inativo"
+
+
+# Importar modelos de pacotes
+from .package_models import EquipmentPackage, PackageItem
+
+
+class PackageItemInline(admin.TabularInline):
+    """
+    Inline para itens do pacote
+    """
+    model = PackageItem
+    extra = 1
+    fields = ['equipment', 'quantity', 'is_optional']
+    autocomplete_fields = ['equipment']
+
+
+@admin.register(EquipmentPackage)
+class EquipmentPackageAdmin(admin.ModelAdmin):
+    """
+    Configuração do admin para pacotes de equipamentos
+    """
+    list_display = [
+        'name', 'created_by', 'is_template', 'is_active', 
+        'total_items', 'created_at'
+    ]
+    list_filter = ['is_template', 'is_active', 'created_at']
+    search_fields = ['name', 'description']
+    readonly_fields = ['created_by', 'created_at', 'updated_at', 'total_items']
+    inlines = [PackageItemInline]
+    
+    fieldsets = (
+        ('Informações do Pacote', {
+            'fields': ('name', 'description', 'is_template', 'is_active')
+        }),
+        ('Metadados', {
+            'fields': ('created_by', 'total_items', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # Se está criando
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(PackageItem)
+class PackageItemAdmin(admin.ModelAdmin):
+    """
+    Configuração do admin para itens do pacote
+    """
+    list_display = ['package', 'equipment', 'quantity', 'is_optional']
+    list_filter = ['is_optional', 'package']
+    search_fields = ['package__name', 'equipment__brand', 'equipment__model']
+    autocomplete_fields = ['package', 'equipment']

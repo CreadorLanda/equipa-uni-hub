@@ -58,6 +58,19 @@ class Equipment(models.Model):
         null=True,
         verbose_name='Localização'
     )
+    color = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        verbose_name='Cor'
+    )
+    category = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name='Categoria',
+        help_text='Categoria adicional do equipamento (ex: Profissional, Educacional, etc.)'
+    )
     
     # Campos adicionais úteis
     created_at = models.DateTimeField(auto_now_add=True)

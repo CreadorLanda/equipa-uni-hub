@@ -10,16 +10,16 @@ interface ApiResponse<T = any> {
 // Configuração da API
 export const api = {
   baseURL: API_BASE_URL,
-  
+
   // Helper para fazer requests autenticados
   request: async <T = any>(endpoint: string, options: RequestInit = {}): Promise<T> => {
     const token = localStorage.getItem('auth_token');
-    
+
     console.log(`API Request: ${options.method || 'GET'} ${endpoint}`, {
       hasToken: !!token,
       tokenPreview: token ? `${token.substring(0, 10)}...` : 'none'
     });
-    
+
     const config: RequestInit = {
       ...options,
       headers: {
@@ -31,7 +31,7 @@ export const api = {
 
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('API Error Details:', {
@@ -43,12 +43,12 @@ export const api = {
         });
         throw new Error(errorData.error || errorData.message || JSON.stringify(errorData) || `HTTP error! status: ${response.status}`);
       }
-      
+
       // Se não há conteúdo, retorna objeto vazio
       if (response.status === 204) {
         return {} as T;
       }
-      
+
       return response.json();
     } catch (error) {
       console.error('API Request Error:', error);
@@ -57,28 +57,28 @@ export const api = {
   },
 
   // Métodos específicos
-  get: <T = any>(endpoint: string): Promise<T> => 
+  get: <T = any>(endpoint: string): Promise<T> =>
     api.request<T>(endpoint),
-    
-  post: <T = any>(endpoint: string, data?: any): Promise<T> => 
+
+  post: <T = any>(endpoint: string, data?: any): Promise<T> =>
     api.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
     }),
-    
-  put: <T = any>(endpoint: string, data?: any): Promise<T> => 
+
+  put: <T = any>(endpoint: string, data?: any): Promise<T> =>
     api.request<T>(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined,
     }),
-    
-  patch: <T = any>(endpoint: string, data?: any): Promise<T> => 
+
+  patch: <T = any>(endpoint: string, data?: any): Promise<T> =>
     api.request<T>(endpoint, {
       method: 'PATCH',
       body: data ? JSON.stringify(data) : undefined,
     }),
-    
-  delete: <T = any>(endpoint: string): Promise<T> => 
+
+  delete: <T = any>(endpoint: string): Promise<T> =>
     api.request<T>(endpoint, {
       method: 'DELETE',
     }),
@@ -86,19 +86,19 @@ export const api = {
 
 // Serviços específicos para cada módulo
 export const authAPI = {
-  login: (email: string, password: string) => 
+  login: (email: string, password: string) =>
     api.post('/auth/login/', { email, password }),
-    
-  logout: () => 
+
+  logout: () =>
     api.post('/auth/logout/', {}),
-    
-  me: () => 
+
+  me: () =>
     api.get('/auth/me/'),
-    
-  changePassword: (oldPassword: string, newPassword: string) => 
-    api.post('/auth/change_password/', { 
-      old_password: oldPassword, 
-      new_password: newPassword 
+
+  changePassword: (oldPassword: string, newPassword: string) =>
+    api.post('/auth/change_password/', {
+      old_password: oldPassword,
+      new_password: newPassword
     }),
 };
 
@@ -107,23 +107,23 @@ export const usersAPI = {
     const queryParams = params ? new URLSearchParams(params).toString() : '';
     return api.get(`/users/${queryParams ? '?' + queryParams : ''}`);
   },
-  
-  get: (id: string) => 
+
+  get: (id: string) =>
     api.get(`/users/${id}/`),
-    
-  create: (data: any) => 
+
+  create: (data: any) =>
     api.post('/users/', data),
-    
-  update: (id: string, data: any) => 
+
+  update: (id: string, data: any) =>
     api.put(`/users/${id}/`, data),
-    
-  delete: (id: string) => 
+
+  delete: (id: string) =>
     api.delete(`/users/${id}/`),
-    
-  activate: (id: string) => 
+
+  activate: (id: string) =>
     api.post(`/users/${id}/activate/`),
-    
-  deactivate: (id: string) => 
+
+  deactivate: (id: string) =>
     api.post(`/users/${id}/deactivate/`),
 };
 
@@ -132,34 +132,34 @@ export const equipmentAPI = {
     const queryParams = params ? new URLSearchParams(params).toString() : '';
     return api.get(`/equipment/${queryParams ? '?' + queryParams : ''}`);
   },
-  
-  get: (id: string) => 
+
+  get: (id: string) =>
     api.get(`/equipment/${id}/`),
-    
-  create: (data: any) => 
+
+  create: (data: any) =>
     api.post('/equipment/', data),
-    
-  update: (id: string, data: any) => 
+
+  update: (id: string, data: any) =>
     api.put(`/equipment/${id}/`, data),
-  
-  partialUpdate: (id: string, data: any) => 
+
+  partialUpdate: (id: string, data: any) =>
     api.patch(`/equipment/${id}/`, data),
-    
-  delete: (id: string) => 
+
+  delete: (id: string) =>
     api.delete(`/equipment/${id}/`),
-    
+
   available: (params?: Record<string, any>) => {
     const queryParams = params ? new URLSearchParams(params).toString() : '';
     return api.get(`/equipment/available/${queryParams ? '?' + queryParams : ''}`);
   },
-  
-  stats: () => 
+
+  stats: () =>
     api.get('/equipment/stats/'),
-    
-  setMaintenance: (id: string) => 
+
+  setMaintenance: (id: string) =>
     api.post(`/equipment/${id}/set_maintenance/`),
-    
-  setAvailable: (id: string) => 
+
+  setAvailable: (id: string) =>
     api.post(`/equipment/${id}/set_available/`),
 };
 
@@ -168,35 +168,35 @@ export const loansAPI = {
     const queryParams = params ? new URLSearchParams(params).toString() : '';
     return api.get(`/loans/${queryParams ? '?' + queryParams : ''}`);
   },
-  
-  get: (id: string) => 
+
+  get: (id: string) =>
     api.get(`/loans/${id}/`),
-    
-  create: (data: any) => 
+
+  create: (data: any) =>
     api.post('/loans/', data),
-    
-  update: (id: string, data: any) => 
+
+  update: (id: string, data: any) =>
     api.put(`/loans/${id}/`, data),
-    
-  delete: (id: string) => 
+
+  delete: (id: string) =>
     api.delete(`/loans/${id}/`),
-    
-  active: () => 
+
+  active: () =>
     api.get('/loans/active/'),
-    
-  overdue: () => 
+
+  overdue: () =>
     api.get('/loans/overdue/'),
-    
-  myLoans: () => 
+
+  myLoans: () =>
     api.get('/loans/my_loans/'),
-    
-  returnEquipment: (id: string, data?: any) => 
+
+  returnEquipment: (id: string, data?: any) =>
     api.post(`/loans/${id}/return_equipment/`, data),
-  
-  confirmarLevantamento: (id: string, data?: any) => 
+
+  confirmarLevantamento: (id: string, data?: any) =>
     api.post(`/loans/${id}/confirmar_levantamento/`, data),
-    
-  stats: () => 
+
+  stats: () =>
     api.get('/loans/stats/'),
 };
 
@@ -205,32 +205,32 @@ export const loanRequestsAPI = {
     const queryParams = params ? new URLSearchParams(params).toString() : '';
     return api.get(`/loan-requests/${queryParams ? '?' + queryParams : ''}`);
   },
-  
-  get: (id: string) => 
+
+  get: (id: string) =>
     api.get(`/loan-requests/${id}/`),
-    
-  create: (data: any) => 
+
+  create: (data: any) =>
     api.post('/loan-requests/', data),
-    
-  update: (id: string, data: any) => 
+
+  update: (id: string, data: any) =>
     api.put(`/loan-requests/${id}/`, data),
-    
-  delete: (id: string) => 
+
+  delete: (id: string) =>
     api.delete(`/loan-requests/${id}/`),
-  
-  pendentes: () => 
+
+  pendentes: () =>
     api.get('/loan-requests/pendentes/'),
-  
-  autorizadas: () => 
+
+  autorizadas: () =>
     api.get('/loan-requests/autorizadas/'),
-    
-  aprovar: (id: string, motivo?: string) => 
+
+  aprovar: (id: string, motivo?: string) =>
     api.post(`/loan-requests/${id}/aprovar/`, { motivo }),
-    
-  rejeitar: (id: string, motivo: string) => 
+
+  rejeitar: (id: string, motivo: string) =>
     api.post(`/loan-requests/${id}/rejeitar/`, { motivo }),
-    
-  confirmarLevantamento: (id: string, notes?: string) => 
+
+  confirmarLevantamento: (id: string, notes?: string) =>
     api.post(`/loan-requests/${id}/confirmar_levantamento/`, { notes }),
 };
 
@@ -239,38 +239,38 @@ export const reservationsAPI = {
     const queryParams = params ? new URLSearchParams(params).toString() : '';
     return api.get(`/reservations/${queryParams ? '?' + queryParams : ''}`);
   },
-  
-  get: (id: string) => 
+
+  get: (id: string) =>
     api.get(`/reservations/${id}/`),
-    
-  create: (data: any) => 
+
+  create: (data: any) =>
     api.post('/reservations/', data),
-    
-  update: (id: string, data: any) => 
+
+  update: (id: string, data: any) =>
     api.put(`/reservations/${id}/`, data),
-    
-  delete: (id: string) => 
+
+  delete: (id: string) =>
     api.delete(`/reservations/${id}/`),
-    
-  active: () => 
+
+  active: () =>
     api.get('/reservations/active/'),
-    
-  expiringSoon: () => 
+
+  expiringSoon: () =>
     api.get('/reservations/expiring_soon/'),
-    
-  myReservations: () => 
+
+  myReservations: () =>
     api.get('/reservations/my_reservations/'),
-    
-  confirm: (id: string, data?: any) => 
+
+  confirm: (id: string, data?: any) =>
     api.post(`/reservations/${id}/confirm/`, data),
-    
-  cancel: (id: string, data?: any) => 
+
+  cancel: (id: string, data?: any) =>
     api.post(`/reservations/${id}/cancel/`, data),
-    
-  convertToLoan: (id: string, data: any) => 
+
+  convertToLoan: (id: string, data: any) =>
     api.post(`/reservations/${id}/convert_to_loan/`, data),
-    
-  stats: () => 
+
+  stats: () =>
     api.get('/reservations/stats/'),
 };
 
@@ -279,28 +279,59 @@ export const notificationsAPI = {
     const queryParams = params ? new URLSearchParams(params).toString() : '';
     return api.get(`/notifications/${queryParams ? '?' + queryParams : ''}`);
   },
-  
-  get: (id: string) => 
+
+  get: (id: string) =>
     api.get(`/notifications/${id}/`),
-    
-  create: (data: any) => 
+
+  create: (data: any) =>
     api.post('/notifications/', data),
-    
-  update: (id: string, data: any) => 
+
+  update: (id: string, data: any) =>
     api.put(`/notifications/${id}/`, data),
-    
-  delete: (id: string) => 
+
+  delete: (id: string) =>
     api.delete(`/notifications/${id}/`),
-    
-  markAsRead: (id: string) => 
+
+  markAsRead: (id: string) =>
     api.post(`/notifications/${id}/mark_read/`),
-    
-  markAllAsRead: () => 
+
+  markAllAsRead: () =>
     api.post('/notifications/mark_all_read/'),
 };
 
+export const packagesAPI = {
+  list: (params?: Record<string, any>) => {
+    const queryParams = params ? new URLSearchParams(params).toString() : '';
+    return api.get(`/packages/${queryParams ? '?' + queryParams : ''}`);
+  },
+
+  get: (id: string) =>
+    api.get(`/packages/${id}/`),
+
+  create: (data: any) =>
+    api.post('/packages/', data),
+
+  update: (id: string, data: any) =>
+    api.put(`/packages/${id}/`, data),
+
+  delete: (id: string) =>
+    api.delete(`/packages/${id}/`),
+
+  addItem: (packageId: string, data: any) =>
+    api.post(`/packages/${packageId}/add_item/`, data),
+
+  removeItem: (packageId: string, itemId: string) =>
+    api.delete(`/packages/${packageId}/remove_item/`, { item_id: itemId }),
+
+  duplicate: (packageId: string) =>
+    api.post(`/packages/${packageId}/duplicate/`),
+
+  available: () =>
+    api.get('/packages/available/'),
+};
+
 export const dashboardAPI = {
-  stats: () => 
+  stats: () =>
     api.get('/dashboard/stats/'),
 };
 

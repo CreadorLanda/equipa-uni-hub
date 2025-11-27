@@ -12,8 +12,8 @@ class EquipmentSerializer(serializers.ModelSerializer):
         model = Equipment
         fields = [
             'id', 'brand', 'model', 'type', 'status', 'serial_number',
-            'acquisition_date', 'description', 'location', 'full_name',
-            'created_at', 'updated_at'
+            'acquisition_date', 'description', 'location', 'color', 'category',
+            'full_name', 'created_at', 'updated_at'
         ]
         extra_kwargs = {
             'created_at': {'read_only': True},
@@ -44,7 +44,7 @@ class EquipmentListSerializer(serializers.ModelSerializer):
         model = Equipment
         fields = [
             'id', 'brand', 'model', 'type', 'status', 'serial_number',
-            'location', 'full_name'
+            'location', 'color', 'category', 'full_name'
         ]
 
 

@@ -24,6 +24,9 @@ export interface Equipment {
   acquisitionDate: string;
   description?: string;
   location?: string;
+  color?: string;
+  category?: string;
+  updatedAt?: string;
 }
 
 export type EquipmentType = 'notebook' | 'desktop' | 'tablet' | 'projetor' | 'impressora' | 'monitor' | 'outros';
@@ -94,6 +97,30 @@ export interface LoanRequest {
 }
 
 export type LoanRequestStatus = 'pendente' | 'autorizado' | 'rejeitado';
+
+export interface PackageItem {
+  id: string;
+  equipment: Equipment;
+  equipment_id: string;
+  quantity: number;
+  is_optional: boolean;
+  created_at: string;
+}
+
+export interface EquipmentPackage {
+  id: string;
+  name: string;
+  description?: string;
+  created_by?: string;
+  created_by_name?: string;
+  is_template: boolean;
+  is_active: boolean;
+  items: PackageItem[];
+  total_items: number;
+  is_available: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface Notification {
   id: string;

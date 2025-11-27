@@ -8,11 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
+import {
+  Plus,
+  Search,
+  Edit,
+  Trash2,
   Power,
   MonitorSpeaker,
   Laptop,
@@ -101,16 +101,18 @@ export const Equipamentos = () => {
     serialNumber: '',
     acquisitionDate: '',
     description: '',
-    location: ''
+    location: '',
+    color: '',
+    category: ''
   });
 
   const filteredEquipments = equipments.filter(equipment => {
     const matchesSearch = equipment.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         equipment.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         equipment.serialNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      equipment.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      equipment.serialNumber.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || equipment.status === statusFilter;
     const matchesType = typeFilter === 'all' || equipment.type === typeFilter;
-    
+
     return matchesSearch && matchesStatus && matchesType;
   });
 
@@ -131,7 +133,7 @@ export const Equipamentos = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!canManageEquipment()) {
       toast({
         title: "Acesso negado",
@@ -142,7 +144,7 @@ export const Equipamentos = () => {
     }
 
     setSubmitting(true);
-    
+
     try {
       if (editingEquipment) {
         // Update existing equipment
@@ -154,13 +156,15 @@ export const Equipamentos = () => {
           serial_number: formData.serialNumber,
           acquisition_date: formData.acquisitionDate,
           description: formData.description,
-          location: formData.location
+          location: formData.location,
+          color: formData.color,
+          category: formData.category
         });
-        
-        setEquipments(prev => prev.map(eq => 
+
+        setEquipments(prev => prev.map(eq =>
           eq.id === editingEquipment.id ? updatedEquipment : eq
         ));
-        
+
         toast({
           title: "Equipamento atualizado!",
           description: "As informações foram salvas com sucesso.",
@@ -175,17 +179,19 @@ export const Equipamentos = () => {
           serial_number: formData.serialNumber,
           acquisition_date: formData.acquisitionDate,
           description: formData.description,
-          location: formData.location
+          location: formData.location,
+          color: formData.color,
+          category: formData.category
         });
-        
+
         setEquipments(prev => [...prev, newEquipment]);
-        
+
         toast({
           title: "Equipamento cadastrado!",
           description: "O novo equipamento foi adicionado ao sistema.",
         });
       }
-      
+
       resetForm();
     } catch (error) {
       console.error('Erro ao salvar equipamento:', error);
@@ -208,7 +214,9 @@ export const Equipamentos = () => {
       serialNumber: '',
       acquisitionDate: '',
       description: '',
-      location: ''
+      location: '',
+      color: '',
+      category: ''
     });
     setEditingEquipment(null);
     setIsDialogOpen(false);
@@ -223,7 +231,9 @@ export const Equipamentos = () => {
       serialNumber: equipment.serialNumber,
       acquisitionDate: equipment.acquisitionDate,
       description: equipment.description || '',
-      location: equipment.location || ''
+      location: equipment.location || '',
+      color: equipment.color || '',
+      category: equipment.category || ''
     });
     setEditingEquipment(equipment);
     setIsDialogOpen(true);
@@ -241,20 +251,20 @@ export const Equipamentos = () => {
 
     try {
       const newStatus = equipment.status === 'inativo' ? 'disponivel' : 'inativo';
-      
+
       if (newStatus === 'disponivel') {
         await equipmentAPI.setAvailable(equipment.id);
       } else {
         // Para inativar, usar PATCH para enviar somente o campo necessário
         await equipmentAPI.partialUpdate(equipment.id, { status: 'inativo' });
       }
-      
-      setEquipments(prev => prev.map(eq => 
-        eq.id === equipment.id 
+
+      setEquipments(prev => prev.map(eq =>
+        eq.id === equipment.id
           ? { ...eq, status: newStatus as EquipmentStatus }
           : eq
       ));
-      
+
       toast({
         title: "Status alterado!",
         description: `Equipamento ${newStatus === 'inativo' ? 'desativado' : 'ativado'} com sucesso.`,
@@ -332,7 +342,7 @@ export const Equipamentos = () => {
             Gerencie todos os equipamentos disponíveis para empréstimo
           </p>
         </div>
-        
+
         {canManageEquipment() && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -341,140 +351,161 @@ export const Equipamentos = () => {
                 Novo Equipamento
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {editingEquipment ? 'Editar Equipamento' : 'Cadastrar Novo Equipamento'}
-              </DialogTitle>
-              <DialogDescription>
-                Preencha os dados do equipamento abaixo.
-              </DialogDescription>
-            </DialogHeader>
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingEquipment ? 'Editar Equipamento' : 'Cadastrar Novo Equipamento'}
+                </DialogTitle>
+                <DialogDescription>
+                  Preencha os dados do equipamento abaixo.
+                </DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="brand">Marca</Label>
+                    <Input
+                      id="brand"
+                      value={formData.brand}
+                      onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="model">Modelo</Label>
+                    <Input
+                      id="model"
+                      value={formData.model}
+                      onChange={(e) => setFormData(prev => ({ ...prev, model: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="type">Tipo</Label>
+                    <Select
+                      value={formData.type}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, type: value as EquipmentType }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {equipmentTypes.map(type => (
+                          <SelectItem key={type.value} value={type.value}>
+                            <div className="flex items-center gap-2">
+                              <type.icon className="w-4 h-4" />
+                              {type.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Status</Label>
+                    <Select
+                      value={formData.status}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, status: value as EquipmentStatus }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map(status => (
+                          <SelectItem key={status.value} value={status.value}>
+                            {status.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="serialNumber">Número de Série</Label>
+                    <Input
+                      id="serialNumber"
+                      value={formData.serialNumber}
+                      onChange={(e) => setFormData(prev => ({ ...prev, serialNumber: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="acquisitionDate">Data de Aquisição</Label>
+                    <Input
+                      id="acquisitionDate"
+                      type="date"
+                      value={formData.acquisitionDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, acquisitionDate: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="brand">Marca</Label>
+                  <Label htmlFor="location">Localização</Label>
                   <Input
-                    id="brand"
-                    value={formData.brand}
-                    onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
-                    required
+                    id="location"
+                    value={formData.location}
+                    onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="Ex: Laboratório 1, Sala 201..."
                   />
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="color">Cor</Label>
+                    <Input
+                      id="color"
+                      value={formData.color}
+                      onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                      placeholder="Ex: Preto, Prata, Branco..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Categoria</Label>
+                    <Input
+                      id="category"
+                      value={formData.category}
+                      onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                      placeholder="Ex: Profissional, Educacional..."
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="model">Modelo</Label>
-                  <Input
-                    id="model"
-                    value={formData.model}
-                    onChange={(e) => setFormData(prev => ({ ...prev, model: e.target.value }))}
-                    required
+                  <Label htmlFor="description">Descrição</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Descrição adicional do equipamento..."
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="type">Tipo</Label>
-                  <Select 
-                    value={formData.type} 
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, type: value as EquipmentType }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {equipmentTypes.map(type => (
-                        <SelectItem key={type.value} value={type.value}>
-                          <div className="flex items-center gap-2">
-                            <type.icon className="w-4 h-4" />
-                            {type.label}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select 
-                    value={formData.status} 
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, status: value as EquipmentStatus }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statusOptions.map(status => (
-                        <SelectItem key={status.value} value={status.value}>
-                          {status.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="serialNumber">Número de Série</Label>
-                  <Input
-                    id="serialNumber"
-                    value={formData.serialNumber}
-                    onChange={(e) => setFormData(prev => ({ ...prev, serialNumber: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="acquisitionDate">Data de Aquisição</Label>
-                  <Input
-                    id="acquisitionDate"
-                    type="date"
-                    value={formData.acquisitionDate}
-                    onChange={(e) => setFormData(prev => ({ ...prev, acquisitionDate: e.target.value }))}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="location">Localização</Label>
-                <Input
-                  id="location"
-                  value={formData.location}
-                  onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                  placeholder="Ex: Laboratório 1, Sala 201..."
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Descrição</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Descrição adicional do equipamento..."
-                />
-              </div>
-
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={resetForm} disabled={submitting}>
-                  Cancelar
-                </Button>
-                <Button type="submit" className="bg-gradient-primary" disabled={submitting}>
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {editingEquipment ? 'Atualizando...' : 'Cadastrando...'}
-                    </>
-                  ) : (
-                    editingEquipment ? 'Atualizar' : 'Cadastrar'
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={resetForm} disabled={submitting}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" className="bg-gradient-primary" disabled={submitting}>
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {editingEquipment ? 'Atualizando...' : 'Cadastrando...'}
+                      </>
+                    ) : (
+                      editingEquipment ? 'Atualizar' : 'Cadastrar'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 
@@ -501,7 +532,7 @@ export const Equipamentos = () => {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label>Status</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -518,7 +549,7 @@ export const Equipamentos = () => {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <Label>Tipo</Label>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -558,7 +589,7 @@ export const Equipamentos = () => {
               <MonitorSpeaker className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <h3 className="text-lg font-medium mb-2">Nenhum equipamento encontrado</h3>
               <p className="text-muted-foreground mb-4">
-                {equipments.length === 0 
+                {equipments.length === 0
                   ? "Ainda não há equipamentos cadastrados no sistema."
                   : "Nenhum equipamento corresponde aos filtros aplicados."}
               </p>
@@ -583,71 +614,71 @@ export const Equipamentos = () => {
               </TableHeader>
               <TableBody>
                 {filteredEquipments.map((equipment) => (
-                <TableRow key={equipment.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{equipment.brand} {equipment.model}</p>
-                      {equipment.description && (
-                        <p className="text-sm text-muted-foreground">{equipment.description}</p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {getTypeIcon(equipment.type)}
-                      <span className="capitalize">{equipment.type}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">{equipment.serialNumber}</TableCell>
-                  <TableCell>{getStatusBadge(equipment.status)}</TableCell>
-                  <TableCell>{equipment.location}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewDetails(equipment)}
-                        title="Ver detalhes do equipamento"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      {canManageEquipment() && (
+                  <TableRow key={equipment.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{equipment.brand} {equipment.model}</p>
+                        {equipment.description && (
+                          <p className="text-sm text-muted-foreground">{equipment.description}</p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {getTypeIcon(equipment.type)}
+                        <span className="capitalize">{equipment.type}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">{equipment.serialNumber}</TableCell>
+                    <TableCell>{getStatusBadge(equipment.status)}</TableCell>
+                    <TableCell>{equipment.location}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          onClick={() => handleEdit(equipment)}
-                          title="Editar equipamento"
+                          onClick={() => handleViewDetails(equipment)}
+                          title="Ver detalhes do equipamento"
                         >
-                          <Edit className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                         </Button>
-                      )}
-                      {canManageEquipment() && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleToggleStatus(equipment)}
-                          title={equipment.status === 'inativo' ? 'Ativar equipamento' : 'Inativar equipamento'}
-                        >
-                          <Power className="w-4 h-4" />
-                        </Button>
-                      )}
-                      {canDeleteEquipment() && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(equipment)}
-                          title="Excluir equipamento"
-                          disabled={equipment.status === 'emprestado' || equipment.status === 'reservado'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                        {canManageEquipment() && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(equipment)}
+                            title="Editar equipamento"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {canManageEquipment() && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleStatus(equipment)}
+                            title={equipment.status === 'inativo' ? 'Ativar equipamento' : 'Inativar equipamento'}
+                          >
+                            <Power className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {canDeleteEquipment() && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(equipment)}
+                            title="Excluir equipamento"
+                            disabled={equipment.status === 'emprestado' || equipment.status === 'reservado'}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -661,7 +692,7 @@ export const Equipamentos = () => {
               Informações completas sobre o equipamento
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedEquipment && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -699,7 +730,7 @@ export const Equipamentos = () => {
                 <div>
                   <Label className="text-muted-foreground">Data de Aquisição</Label>
                   <p className="font-medium">
-                    {selectedEquipment.acquisitionDate 
+                    {selectedEquipment.acquisitionDate
                       ? new Date(selectedEquipment.acquisitionDate).toLocaleDateString('pt-BR')
                       : '-'}
                   </p>
@@ -730,7 +761,7 @@ export const Equipamentos = () => {
                   <div>
                     <span>Última atualização: </span>
                     <span>
-                      {selectedEquipment.updatedAt 
+                      {selectedEquipment.updatedAt
                         ? new Date(selectedEquipment.updatedAt).toLocaleString('pt-BR')
                         : '-'}
                     </span>
@@ -745,7 +776,7 @@ export const Equipamentos = () => {
               Fechar
             </Button>
             {canManageEquipment() && selectedEquipment && (
-              <Button 
+              <Button
                 onClick={() => {
                   setShowDetailsDialog(false);
                   handleEdit(selectedEquipment);

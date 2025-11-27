@@ -18,6 +18,7 @@ import { Utilizadores } from "@/pages/Utilizadores";
 import { Perfil } from "@/pages/Perfil";
 import { Historico } from "@/pages/Historico";
 import { Solicitacoes } from "@/pages/Solicitacoes";
+import Pacotes from "@/pages/Pacotes";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
@@ -28,70 +29,75 @@ const App = () => (
     <AuthProvider>
       <NotificationProvider>
         <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/equipamentos" element={
-              <ProtectedRoute allowedRoles={['tecnico']}>
-                <Equipamentos />
-              </ProtectedRoute>
-            } />
-            <Route path="/emprestimos" element={
-              <ProtectedRoute>
-                <Emprestimos />
-              </ProtectedRoute>
-            } />
-            <Route path="/reservas" element={
-              <ProtectedRoute>
-                <Reservas />
-              </ProtectedRoute>
-            } />
-            <Route path="/relatorios" element={
-              <ProtectedRoute allowedRoles={['tecnico']}>
-                <Relatorios />
-              </ProtectedRoute>
-            } />
-            <Route path="/consultar" element={
-              <ProtectedRoute>
-                <Consultar />
-              </ProtectedRoute>
-            } />
-            <Route path="/notificacoes" element={
-              <ProtectedRoute>
-                <Notificacoes />
-              </ProtectedRoute>
-            } />
-            <Route path="/utilizadores" element={
-              <ProtectedRoute allowedRoles={['tecnico']}>
-                <Utilizadores />
-              </ProtectedRoute>
-            } />
-            <Route path="/perfil" element={
-              <ProtectedRoute>
-                <Perfil />
-              </ProtectedRoute>
-            } />
-            <Route path="/historico" element={
-              <ProtectedRoute>
-                <Historico />
-              </ProtectedRoute>
-            } />
-            <Route path="/solicitacoes" element={
-              <ProtectedRoute>
-                <Solicitacoes />
-              </ProtectedRoute>
-            } />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/equipamentos" element={
+                <ProtectedRoute allowedRoles={['tecnico']}>
+                  <Equipamentos />
+                </ProtectedRoute>
+              } />
+              <Route path="/emprestimos" element={
+                <ProtectedRoute>
+                  <Emprestimos />
+                </ProtectedRoute>
+              } />
+              <Route path="/reservas" element={
+                <ProtectedRoute>
+                  <Reservas />
+                </ProtectedRoute>
+              } />
+              <Route path="/pacotes" element={
+                <ProtectedRoute allowedRoles={['tecnico', 'secretario', 'coordenador']}>
+                  <Pacotes />
+                </ProtectedRoute>
+              } />
+              <Route path="/relatorios" element={
+                <ProtectedRoute allowedRoles={['tecnico']}>
+                  <Relatorios />
+                </ProtectedRoute>
+              } />
+              <Route path="/consultar" element={
+                <ProtectedRoute>
+                  <Consultar />
+                </ProtectedRoute>
+              } />
+              <Route path="/notificacoes" element={
+                <ProtectedRoute>
+                  <Notificacoes />
+                </ProtectedRoute>
+              } />
+              <Route path="/utilizadores" element={
+                <ProtectedRoute allowedRoles={['tecnico']}>
+                  <Utilizadores />
+                </ProtectedRoute>
+              } />
+              <Route path="/perfil" element={
+                <ProtectedRoute>
+                  <Perfil />
+                </ProtectedRoute>
+              } />
+              <Route path="/historico" element={
+                <ProtectedRoute>
+                  <Historico />
+                </ProtectedRoute>
+              } />
+              <Route path="/solicitacoes" element={
+                <ProtectedRoute>
+                  <Solicitacoes />
+                </ProtectedRoute>
+              } />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
         </TooltipProvider>
       </NotificationProvider>
     </AuthProvider>
