@@ -12,6 +12,10 @@ export interface User {
   address?: string;
   area?: string;
   is_active?: boolean;
+  is_external?: boolean;
+  external_id?: string;
+  created_by?: string;
+  created_by_name?: string;
 }
 
 export interface Equipment {
@@ -37,8 +41,10 @@ export interface Loan {
   id: string;
   userId: string;
   userName: string;
-  equipmentId: string;
+  equipmentId?: string;
   equipmentName: string;
+  pacote?: number;
+  pacoteDetail?: EquipmentPackage;
   startDate: string;
   startTime: string;
   expectedReturnDate: string;
@@ -51,8 +57,18 @@ export interface Loan {
   createdByUserName?: string;
   tecnicoEntrega?: string;
   tecnicoEntregaName?: string;
+
+  // Dual confirmation
+  confirmadoTecnico: boolean;
+  dataConfirmacaoTecnico?: string;
+  confirmadoUtente: boolean;
+  dataConfirmacaoUtente?: string;
   confirmadoLevantamento: boolean;
   dataConfirmacaoLevantamento?: string;
+
+  // Same-day return
+  devolucaoMesmoDia: boolean;
+  dataPrevistaDevolucao?: string;
 }
 
 export type LoanStatus = 'pendente' | 'ativo' | 'atrasado' | 'concluido' | 'cancelado';
@@ -78,7 +94,8 @@ export interface LoanRequest {
   userName: string;
   equipments: string[];
   equipmentsDetail?: Equipment[];
-  quantity: number;
+  pacote?: number;
+  pacoteDetail?: EquipmentPackage;
   purpose: string;
   expectedReturnDate: string;
   expectedReturnTime?: string;
@@ -88,15 +105,30 @@ export interface LoanRequest {
   aprovadorName?: string;
   motivoDecisao?: string;
   dataDecisao?: string;
+
+  // Cancel
+  canceladoPor?: string;
+  canceladorName?: string;
+  dataCancelamento?: string;
+  motivoCancelamento?: string;
+
   tecnicoResponsavel?: string;
   tecnicoName?: string;
   dataLevantamento?: string;
   confirmadoPeloTecnico: boolean;
+  confirmadoPeloUtente: boolean;
+  dataConfirmacaoUtente?: string;
+  confirmacaoCompleta: boolean;
+
+  // Same-day return
+  devolucaoMesmoDia: boolean;
+  diasPrevistosDevolucao?: number;
+
   createdAt: string;
   updatedAt: string;
 }
 
-export type LoanRequestStatus = 'pendente' | 'autorizado' | 'rejeitado';
+export type LoanRequestStatus = 'pendente' | 'autorizado' | 'rejeitado' | 'cancelado';
 
 export interface PackageItem {
   id: string;

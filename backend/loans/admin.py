@@ -9,41 +9,59 @@ class LoanAdmin(admin.ModelAdmin):
     Configuração do admin para o modelo Loan
     """
     list_display = [
-        'equipment', 'user', 'start_date', 'expected_return_date',
+        'equipment_or_package', 'user', 'start_date', 'expected_return_date',
         'actual_return_date', 'status', 'is_overdue', 'created_at'
     ]
     list_filter = [
-        'status', 'start_date', 'expected_return_date', 'equipment__type',
-        'user__role', 'created_at'
+        'status', 'start_date', 'expected_return_date',
+        'user__role', 'created_at', 'devolucao_mesmo_dia'
     ]
     search_fields = [
-        'user__name', 'user__email', 'equipment__brand', 
-        'equipment__model', 'equipment__serial_number', 'purpose'
+        'user__name', 'user__email', 'equipment__brand',
+        'equipment__model', 'equipment__serial_number', 'pacote__name', 'purpose'
     ]
     ordering = ['-created_at']
     readonly_fields = [
         'created_at', 'updated_at', 'is_overdue', 'days_overdue',
-        'user_name', 'equipment_name'
+        'user_name', 'equipment_name', 'confirmado_levantamento', 'data_confirmacao_levantamento'
     ]
-    
+
     fieldsets = (
         ('Informações Básicas', {
-            'fields': ('user', 'equipment', 'purpose')
+            'fields': ('user', 'equipment', 'pacote', 'purpose')
         }),
         ('Datas', {
-            'fields': ('start_date', 'expected_return_date', 'actual_return_date')
+            'fields': ('start_date', 'expected_return_date', 'expected_return_time', 'actual_return_date')
+        }),
+        ('Devolução', {
+            'fields': ('devolucao_mesmo_dia', 'data_prevista_devolucao'),
+        }),
+        ('Confirmação Dupla', {
+            'fields': (
+                'confirmado_tecnico', 'data_confirmacao_tecnico', 'tecnico_entrega',
+                'confirmado_utente', 'data_confirmacao_utente',
+                'confirmado_levantamento', 'data_confirmacao_levantamento'
+            ),
         }),
         ('Status e Observações', {
             'fields': ('status', 'notes')
         }),
         ('Metadados', {
             'fields': (
-                'created_by', 'created_at', 'updated_at', 
+                'created_by', 'created_at', 'updated_at',
                 'is_overdue', 'days_overdue', 'user_name', 'equipment_name'
             ),
             'classes': ('collapse',)
         }),
     )
+
+    def equipment_or_package(self, obj):
+        if obj.equipment:
+            return str(obj.equipment)
+        if obj.pacote:
+            return f"Pacote: {obj.pacote.name}"
+        return '—'
+    equipment_or_package.short_description = 'Equipamento/Pacote'
     
     actions = ['mark_as_returned', 'mark_as_overdue', 'mark_as_cancelled']
     
@@ -114,32 +132,46 @@ class LoanRequestAdmin(admin.ModelAdmin):
     Configuração do admin para o modelo LoanRequest
     """
     list_display = [
-        'id', 'user', 'quantity', 'status', 'tecnico_responsavel',
-        'aprovado_por', 'confirmado_pelo_tecnico', 'created_at'
+        'id', 'user', 'status', 'tecnico_responsavel',
+        'aprovado_por', 'confirmado_pelo_tecnico', 'confirmado_pelo_utente',
+        'confirmacao_completa', 'created_at'
     ]
     list_filter = [
-        'status', 'confirmado_pelo_tecnico', 'created_at', 'expected_return_date'
+        'status', 'confirmado_pelo_tecnico', 'confirmado_pelo_utente',
+        'created_at', 'expected_return_date', 'devolucao_mesmo_dia'
     ]
     search_fields = [
-        'user__name', 'user__email', 'purpose', 'notes'
+        'user__name', 'user__email', 'purpose', 'notes', 'motivo_cancelamento'
     ]
     ordering = ['-created_at']
     readonly_fields = [
-        'created_at', 'updated_at', 'user_name', 'tecnico_name', 'aprovador_name'
+        'created_at', 'updated_at', 'user_name', 'tecnico_name', 'aprovador_name',
+        'confirmacao_completa'
     ]
-    
+
     fieldsets = (
         ('Informações Básicas', {
-            'fields': ('user', 'equipments', 'quantity', 'purpose')
+            'fields': ('user', 'equipments', 'pacote', 'purpose')
         }),
         ('Datas', {
             'fields': ('expected_return_date', 'expected_return_time')
         }),
+        ('Devolução', {
+            'fields': ('devolucao_mesmo_dia', 'data_prevista_devolucao'),
+        }),
         ('Status e Aprovação', {
             'fields': ('status', 'aprovado_por', 'motivo_decisao', 'data_decisao')
         }),
-        ('Levantamento', {
-            'fields': ('tecnico_responsavel', 'confirmado_pelo_tecnico', 'data_levantamento')
+        ('Cancelamento', {
+            'fields': ('cancelado_por', 'data_cancelamento', 'motivo_cancelamento'),
+            'classes': ('collapse',)
+        }),
+        ('Confirmação Dupla', {
+            'fields': (
+                'tecnico_responsavel', 'confirmado_pelo_tecnico', 'data_levantamento',
+                'confirmado_pelo_utente', 'data_confirmacao_utente',
+                'confirmacao_completa'
+            ),
         }),
         ('Observações', {
             'fields': ('notes',)
@@ -149,10 +181,10 @@ class LoanRequestAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+
     filter_horizontal = ['equipments']
-    
-    actions = ['aprovar_solicitacoes', 'rejeitar_solicitacoes']
+
+    actions = ['aprovar_solicitacoes', 'rejeitar_solicitacoes', 'cancelar_solicitacoes']
     
     def aprovar_solicitacoes(self, request, queryset):
         """
@@ -189,10 +221,25 @@ class LoanRequestAdmin(admin.ModelAdmin):
         )
     rejeitar_solicitacoes.short_description = "Rejeitar solicitações selecionadas"
     
+    def cancelar_solicitacoes(self, request, queryset):
+        """
+        Cancela solicitações pendentes/autorizadas
+        """
+        cancellable = queryset.filter(status__in=['pendente', 'autorizado'])
+        updated = 0
+
+        for req in cancellable:
+            req.cancelar(request.user, 'Cancelado via admin')
+            updated += 1
+
+        self.message_user(
+            request,
+            f'{updated} solicitação(ões) cancelada(s).',
+            level='warning'
+        )
+    cancelar_solicitacoes.short_description = "Cancelar solicitações selecionadas"
+
     def get_queryset(self, request):
-        """
-        Otimiza queries para o admin
-        """
         return super().get_queryset(request).select_related(
-            'user', 'tecnico_responsavel', 'aprovado_por'
+            'user', 'tecnico_responsavel', 'aprovado_por', 'cancelado_por'
         ).prefetch_related('equipments')

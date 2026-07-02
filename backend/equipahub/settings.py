@@ -210,8 +210,20 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # Loan Request Limits Configuration
 # Requests exceeding these limits require special approval from coordenador (reitoria)
 LOAN_REQUEST_LIMITS = {
-    'max_equipment_count': config('LOAN_MAX_EQUIPMENT', default=50, cast=int),  # Maximum equipment without special approval
-    'max_days': config('LOAN_MAX_DAYS', default=1, cast=int),  # Maximum days without special approval
+    'max_equipment_count': config('LOAN_MAX_EQUIPMENT', default=50, cast=int),
+    'max_days': config('LOAN_MAX_DAYS', default=1, cast=int),
+}
+
+# Auto-cancel configuration for loan requests
+# Requests pending for more than this many days without full confirmation will be auto-cancelled
+AUTO_CANCEL_DAYS = config('AUTO_CANCEL_DAYS', default=3, cast=int)
+
+# External Person API configuration
+# Used to validate/fetch docente, secretario, coordenador data
+EXTERNAL_PERSON_API = {
+    'base_url': config('EXTERNAL_API_URL', default=''),
+    'api_key': config('EXTERNAL_API_KEY', default=''),
+    'timeout': 10,
 }
 
 # Logging

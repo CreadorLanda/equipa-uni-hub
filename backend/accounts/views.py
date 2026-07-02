@@ -117,15 +117,36 @@ class UserViewSet(viewsets.ModelViewSet):
         return queryset.order_by('name')
     
     def perform_create(self, serializer):
-        """
-        Personaliza a criação de usuário
-        """
-        # Apenas técnicos, coordenadores e secretários podem criar usuários
-        if self.request.user.role not in ['tecnico', 'coordenador', 'secretario']:
+        role = serializer.validated_data.get('role')
+
+        # Apenas o chefe da DTI (coordenador) pode criar utilizadores locais
+        if self.request.user.role != 'coordenador':
             raise PermissionDenied(
-                'Apenas técnicos, coordenadores e secretários podem criar usuários.'
+                'Apenas o administrador (chefe da DTI) pode criar utilizadores.'
             )
-        serializer.save()
+
+        # Roles externas (docente, secretario, coordenador) devem vir do sistema externo
+        if role in User.EXTERNAL_ROLES:
+            from .external_person_service import external_person_service
+            person_data = external_person_service.lookup_person(
+                serializer.validated_data.get('email')
+            )
+            if not person_data:
+                raise PermissionDenied(
+                    f'Utilizadores com função "{role}" devem ser registados no Sistema de Gestão de Pessoas externo. '
+                    f'Consulte o sistema externo antes de registar manualmente.'
+                )
+            serializer.save(
+                is_external=True,
+                external_id=person_data.get('external_id'),
+                created_by=self.request.user
+            )
+        else:
+            # Técnico (atribuidor eventual) - registo local pelo admin
+            serializer.save(
+                is_external=False,
+                created_by=self.request.user
+            )
     
     def perform_update(self, serializer):
         """

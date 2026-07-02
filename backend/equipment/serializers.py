@@ -59,6 +59,17 @@ class EquipmentSummarySerializer(serializers.ModelSerializer):
         fields = ['id', 'full_name', 'serial_number', 'status', 'type']
 
 
+class PackageSummarySerializer(serializers.Serializer):
+    """
+    Serializer resumido para pacotes referenciados em empréstimos
+    """
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    total_items = serializers.IntegerField()
+    is_available = serializers.BooleanField()
+
+
 class EquipmentStatsSerializer(serializers.Serializer):
     """
     Serializer para estatísticas de equipamentos

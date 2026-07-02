@@ -10,7 +10,9 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Loan
 from .serializers import (
     LoanSerializer, LoanListSerializer, LoanReturnSerializer,
-    LoanStatsSerializer, LoanConfirmPickupSerializer
+    LoanStatsSerializer, LoanConfirmPickupSerializer,
+    LoanConfirmTecnicoSerializer, LoanConfirmUtenteSerializer,
+    LoanCancelSerializer
 )
 from .services import LoanNotificationService
 
@@ -29,13 +31,16 @@ class LoanViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def get_serializer_class(self):
-        """
-        Retorna o serializer apropriado baseado na ação
-        """
         if self.action == 'list':
             return LoanListSerializer
         elif self.action == 'return_equipment':
             return LoanReturnSerializer
+        elif self.action == 'confirmar_tecnico':
+            return LoanConfirmTecnicoSerializer
+        elif self.action == 'confirmar_utente':
+            return LoanConfirmUtenteSerializer
+        elif self.action == 'cancelar':
+            return LoanCancelSerializer
         return LoanSerializer
     
     def get_queryset(self):
@@ -290,58 +295,144 @@ class LoanViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def confirmar_levantamento(self, request, pk=None):
         """
-        Confirma que o utente levantou o equipamento (apenas técnicos)
-        Muda status de 'pendente' para 'ativo'
+        Retrocompatibilidade: confirma como técnico.
+        Se utente já confirmou, ativa o empréstimo.
+        """
+        return self.confirmar_tecnico(request, pk)
+
+    @action(detail=True, methods=['post'])
+    def confirmar_tecnico(self, request, pk=None):
+        """
+        Técnico confirma o levantamento.
+        Se utente já confirmou, ativa o empréstimo.
         """
         loan = self.get_object()
-        
-        # Verifica permissões
+
         if request.user.role not in ['tecnico', 'secretario', 'coordenador']:
             return Response(
-                {'error': 'Apenas técnicos podem confirmar o levantamento.'}, 
+                {'error': 'Apenas técnicos, secretários ou coordenadores podem confirmar como técnico.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
-        # Verifica se está pendente ou se já está confirmado
-        if loan.status not in ['pendente', 'ativo', 'atrasado']:
+
+        if loan.status not in ['pendente']:
             return Response(
-                {'error': 'Este empréstimo não pode ser confirmado.'}, 
+                {'error': 'Este empréstimo não está pendente.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        if loan.confirmado_levantamento:
+
+        if loan.confirmado_tecnico:
             return Response(
-                {'error': 'O levantamento já foi confirmado.'}, 
+                {'error': 'O técnico já confirmou este levantamento.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        serializer = LoanConfirmPickupSerializer(data=request.data)
-        
+
+        serializer = LoanConfirmTecnicoSerializer(data=request.data)
         if serializer.is_valid():
-            # Usa o método do modelo para confirmar levantamento
-            # Isso muda status de 'pendente' para 'ativo' e atualiza equipamentos
-            loan.confirmar_levantamento(request.user)
-            
-            # Adiciona observações se fornecidas
+            loan.confirmar_tecnico(request.user)
+
             notes = serializer.validated_data.get('notes', '')
             if notes:
                 existing_notes = loan.notes or ''
-                loan.notes = f"{existing_notes}\n\nLevantamento confirmado: {notes}".strip()
+                loan.notes = f"{existing_notes}\n\nConfirmação técnica: {notes}".strip()
                 loan.save()
-            
-            # Envia notificação
-            try:
-                LoanNotificationService.send_pickup_confirmed_notification(loan)
-            except Exception as e:
-                print(f"Erro ao enviar notificação de confirmação: {e}")
-            
+
+            message = 'Confirmação técnica registada. '
+            if loan.confirmado_levantamento:
+                message += 'Utente já tinha confirmado. Empréstimo ativado!'
+                try:
+                    LoanNotificationService.send_pickup_confirmed_notification(loan)
+                except Exception as e:
+                    print(f"Erro ao enviar notificação: {e}")
+            else:
+                message += 'Aguardando confirmação do utente.'
+
+            loan_serializer = LoanSerializer(loan)
+            return Response({'message': message, 'loan': loan_serializer.data}, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def confirmar_utente(self, request, pk=None):
+        """
+        Utente confirma o levantamento.
+        Se técnico já confirmou, ativa o empréstimo.
+        """
+        loan = self.get_object()
+
+        if loan.user != request.user:
+            return Response(
+                {'error': 'Apenas o utente pode confirmar o seu próprio levantamento.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if loan.status not in ['pendente']:
+            return Response(
+                {'error': 'Este empréstimo não está pendente.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if loan.confirmado_utente:
+            return Response(
+                {'error': 'Já confirmou o levantamento.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = LoanConfirmUtenteSerializer(data=request.data)
+        if serializer.is_valid():
+            loan.confirmar_utente()
+
+            notes = serializer.validated_data.get('notes', '')
+            if notes:
+                existing_notes = loan.notes or ''
+                loan.notes = f"{existing_notes}\n\nConfirmação utente: {notes}".strip()
+                loan.save()
+
+            message = 'Confirmação registada. '
+            if loan.confirmado_levantamento:
+                message += 'Técnico já tinha confirmado. Empréstimo ativado!'
+                try:
+                    LoanNotificationService.send_pickup_confirmed_notification(loan)
+                except Exception as e:
+                    print(f"Erro ao enviar notificação: {e}")
+            else:
+                message += 'Aguardando confirmação do técnico.'
+
+            loan_serializer = LoanSerializer(loan)
+            return Response({'message': message, 'loan': loan_serializer.data}, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def cancelar(self, request, pk=None):
+        """
+        Cancela um empréstimo pendente.
+        """
+        loan = self.get_object()
+
+        if loan.status != 'pendente':
+            return Response(
+                {'error': 'Apenas empréstimos pendentes podem ser cancelados.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if request.user != loan.user and request.user.role not in ['tecnico', 'coordenador']:
+            return Response(
+                {'error': 'Apenas o utente, técnico ou coordenador pode cancelar.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = LoanCancelSerializer(data=request.data)
+        if serializer.is_valid():
+            loan.status = 'cancelado'
+            motivo = serializer.validated_data.get('motivo', '')
+            if motivo:
+                loan.notes = f"{loan.notes or ''}\n\nCancelado: {motivo}".strip()
+            loan.save()
+
             loan_serializer = LoanSerializer(loan)
             return Response(
-                {
-                    'message': 'Levantamento confirmado com sucesso. Empréstimo agora está ativo.',
-                    'loan': loan_serializer.data
-                }, 
+                {'message': 'Empréstimo cancelado com sucesso.', 'loan': loan_serializer.data},
                 status=status.HTTP_200_OK
             )
-        
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

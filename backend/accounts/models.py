@@ -1,10 +1,11 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.conf import settings
 
 
 class User(AbstractUser):
     """
-    Modelo de usuário customizado baseado no interface TypeScript User
+    Modelo de usuário customizado
     """
     ROLE_CHOICES = [
         ('tecnico', 'Técnico'),
@@ -12,6 +13,8 @@ class User(AbstractUser):
         ('secretario', 'Secretário'),
         ('coordenador', 'Coordenador'),
     ]
+    
+    EXTERNAL_ROLES = ['docente', 'secretario', 'coordenador']
     
     id = models.AutoField(primary_key=True)
     email = models.EmailField(unique=True)
@@ -29,7 +32,24 @@ class User(AbstractUser):
         verbose_name='Departamento'
     )
     
-    # Campos adicionais úteis
+    # Integração com sistema externo de pessoas
+    external_id = models.CharField(
+        max_length=100,
+        blank=True, null=True,
+        verbose_name='ID no sistema externo'
+    )
+    is_external = models.BooleanField(
+        default=False,
+        verbose_name='Utilizador do sistema externo'
+    )
+    created_by = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='created_users',
+        verbose_name='Criado por (admin)'
+    )
+    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

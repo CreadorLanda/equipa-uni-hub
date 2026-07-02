@@ -18,7 +18,7 @@ class Loan(models.Model):
     Modelo de empréstimo baseado no interface TypeScript Loan
     """
     LOAN_STATUS_CHOICES = [
-        ('pendente', 'Pendente Levantamento'),  # Aguardando confirmação do técnico
+        ('pendente', 'Pendente'),  # Aguardando confirmações
         ('ativo', 'Ativo'),
         ('atrasado', 'Atrasado'),
         ('concluido', 'Concluído'),
@@ -36,7 +36,15 @@ class Loan(models.Model):
         'equipment.Equipment',
         on_delete=models.CASCADE,
         related_name='loans',
-        verbose_name='Equipamento'
+        verbose_name='Equipamento',
+        null=True, blank=True,
+    )
+    pacote = models.ForeignKey(
+        'equipment.EquipmentPackage',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='loans',
+        verbose_name='Pacote'
     )
     start_date = models.DateField(
         default=get_current_date,
@@ -62,7 +70,7 @@ class Loan(models.Model):
     status = models.CharField(
         max_length=20,
         choices=LOAN_STATUS_CHOICES,
-        default='pendente',  # Alterado: empréstimo começa pendente até técnico confirmar
+        default='pendente',
         verbose_name='Status'
     )
     purpose = models.TextField(
@@ -74,7 +82,6 @@ class Loan(models.Model):
         verbose_name='Observações'
     )
     
-    # Campos adicionais úteis
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(
@@ -85,34 +92,71 @@ class Loan(models.Model):
         verbose_name='Criado por'
     )
     
-    # Campos para rastreamento do técnico que entregou o equipamento
+    # CONFIRMAÇÃO DUPLA
+    confirmado_tecnico = models.BooleanField(
+        default=False,
+        verbose_name='Confirmado pelo técnico'
+    )
+    data_confirmacao_tecnico = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Data de confirmação do técnico'
+    )
     tecnico_entrega = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        null=True, blank=True,
         related_name='loans_entregues',
         limit_choices_to={'role': 'tecnico'},
         verbose_name='Técnico que entregou'
     )
-    confirmado_levantamento = models.BooleanField(
+    confirmado_utente = models.BooleanField(
         default=False,
-        verbose_name='Levantamento confirmado'
+        verbose_name='Confirmado pelo utente'
     )
-    data_confirmacao_levantamento = models.DateTimeField(
-        null=True,
-        blank=True,
-        verbose_name='Data de confirmação do levantamento'
+    data_confirmacao_utente = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Data de confirmação do utente'
     )
     
+    # Campos mantidos para retrocompatibilidade (agora como properties)
+    # confirmado_levantamento e data_confirmacao_levantamento foram removidos
+    
+    # DEVOLUÇÃO NO MESMO DIA
+    devolucao_mesmo_dia = models.BooleanField(
+        default=False,
+        verbose_name='Devolução no mesmo dia?'
+    )
+    data_prevista_devolucao = models.DateField(
+        null=True, blank=True,
+        verbose_name='Data prevista de devolução'
+    )
+
     class Meta:
         db_table = 'loans'
         verbose_name = 'Empréstimo'
         verbose_name_plural = 'Empréstimos'
         ordering = ['-created_at']
-        
+    
     def __str__(self):
-        return f"Empréstimo: {self.equipment} para {self.user.name}"
+        if self.equipment:
+            return f"Empréstimo: {self.equipment} para {self.user.name}"
+        if self.pacote:
+            return f"Empréstimo: {self.pacote} para {self.user.name}"
+        return f"Empréstimo #{self.id} - {self.user.name}"
+    
+    @property
+    def confirmado_levantamento(self):
+        """Retrocompatibilidade: true se AMBAS confirmações existirem"""
+        return self.confirmado_tecnico and self.confirmado_utente
+    
+    @property
+    def data_confirmacao_levantamento(self):
+        """Retrocompatibilidade: data da última confirmação"""
+        if not (self.confirmado_tecnico and self.confirmado_utente):
+            return None
+        if self.data_confirmacao_tecnico and self.data_confirmacao_utente:
+            return max(self.data_confirmacao_tecnico, self.data_confirmacao_utente)
+        return self.data_confirmacao_tecnico or self.data_confirmacao_utente
     
     @property
     def user_name(self):
@@ -120,22 +164,32 @@ class Loan(models.Model):
     
     @property
     def equipment_name(self):
-        return str(self.equipment)
+        if self.equipment:
+            return str(self.equipment)
+        if self.pacote:
+            return str(self.pacote)
+        return '—'
     
     def get_all_equipments(self):
-        """
-        Retorna todos os equipamentos deste empréstimo
-        (equipamento principal + acessórios via LoanEquipment)
-        """
-        # Equipamento principal (campo direto)
-        equipments = [{
-            'id': self.equipment.id,
-            'name': str(self.equipment),
-            'is_primary': True,
-            'returned': False
-        }]
+        equipments = []
         
-        # Acessórios adicionais (via LoanEquipment)
+        if self.equipment:
+            equipments.append({
+                'id': self.equipment.id,
+                'name': str(self.equipment),
+                'is_primary': True,
+                'returned': False
+            })
+        
+        if self.pacote:
+            for item in self.pacote.items.all():
+                equipments.append({
+                    'id': item.equipment.id,
+                    'name': str(item.equipment),
+                    'is_primary': False,
+                    'returned': False
+                })
+        
         for loan_eq in self.loan_equipments.all():
             equipments.append({
                 'id': loan_eq.equipment.id,
@@ -146,19 +200,40 @@ class Loan(models.Model):
         
         return equipments
     
-    def confirmar_levantamento(self, tecnico):
-        """
-        Técnico confirma que utente levantou o(s) equipamento(s)
-        """
-        self.confirmado_levantamento = True
+    def confirmar_tecnico(self, tecnico):
+        """Técnico confirma que utente levantou o(s) equipamento(s)"""
+        self.confirmado_tecnico = True
         self.tecnico_entrega = tecnico
-        self.data_confirmacao_levantamento = timezone.now()
-        self.status = 'ativo'  # Muda de 'pendente' para 'ativo'
+        self.data_confirmacao_tecnico = timezone.now()
+        
+        if self.confirmado_utente:
+            self._ativar_emprestimo()
+        else:
+            self.save()
+    
+    def confirmar_utente(self):
+        """Utente confirma que levantou o(s) equipamento(s)"""
+        self.confirmado_utente = True
+        self.data_confirmacao_utente = timezone.now()
+        
+        if self.confirmado_tecnico:
+            self._ativar_emprestimo()
+        else:
+            self.save()
+    
+    def _ativar_emprestimo(self):
+        """Ativa o empréstimo quando ambas confirmações existirem"""
+        self.status = 'ativo'
         self.save()
         
-        # Atualiza status de todos os equipamentos para 'emprestado'
-        self.equipment.status = 'emprestado'
-        self.equipment.save()
+        if self.equipment:
+            self.equipment.status = 'emprestado'
+            self.equipment.save()
+        
+        if self.pacote:
+            for item in self.pacote.items.all():
+                item.equipment.status = 'emprestado'
+                item.equipment.save()
         
         for loan_eq in self.loan_equipments.all():
             loan_eq.equipment.status = 'emprestado'
@@ -166,20 +241,17 @@ class Loan(models.Model):
     
     @property
     def is_overdue(self):
-        """Verifica se o empréstimo está atrasado"""
         if self.status == 'concluido':
             return False
         return timezone.now().date() > self.expected_return_date
     
     @property
     def days_overdue(self):
-        """Calcula quantos dias está atrasado"""
         if not self.is_overdue:
             return 0
         return (timezone.now().date() - self.expected_return_date).days
     
     def return_equipment(self, return_date=None):
-        """Marca o equipamento como devolvido"""
         if return_date is None:
             return_date = timezone.now().date()
         
@@ -187,18 +259,18 @@ class Loan(models.Model):
         self.status = 'concluido'
         self.save()
         
-        # Atualiza o status do equipamento para disponível
-        self.equipment.status = 'disponivel'
-        self.equipment.save()
+        if self.equipment:
+            self.equipment.status = 'disponivel'
+            self.equipment.save()
+        
+        if self.pacote:
+            for item in self.pacote.items.all():
+                item.equipment.status = 'disponivel'
+                item.equipment.save()
     
     def save(self, *args, **kwargs):
-        # Atualiza automaticamente o status se estiver atrasado (apenas se já estiver ativo)
         if self.status == 'ativo' and self.is_overdue:
             self.status = 'atrasado'
-        
-        # REMOVIDO: Não muda status do equipamento automaticamente
-        # Status só muda quando técnico confirmar levantamento via confirmar_levantamento()
-        
         super().save(*args, **kwargs)
 
 
@@ -251,13 +323,14 @@ class LoanEquipment(models.Model):
 
 class LoanRequest(models.Model):
     """
-    Modelo de solicitação de empréstimo para grandes quantidades (>5 equipamentos)
-    Requer aprovação da reitoria
+    Modelo de solicitação de empréstimo (>5 equipamentos ou pacote único)
+    Requer aprovação da reitoria e dupla confirmação (técnico + utente)
     """
     REQUEST_STATUS_CHOICES = [
         ('pendente', 'Pendente'),
         ('autorizado', 'Autorizado'),
         ('rejeitado', 'Rejeitado'),
+        ('cancelado', 'Cancelado'),
     ]
     
     id = models.AutoField(primary_key=True)
@@ -272,8 +345,12 @@ class LoanRequest(models.Model):
         related_name='loan_requests',
         verbose_name='Equipamentos solicitados'
     )
-    quantity = models.IntegerField(
-        verbose_name='Quantidade de equipamentos'
+    pacote = models.ForeignKey(
+        'equipment.EquipmentPackage',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='loan_requests',
+        verbose_name='Pacote'
     )
     purpose = models.TextField(
         verbose_name='Finalidade'
@@ -292,7 +369,6 @@ class LoanRequest(models.Model):
         verbose_name='Observações'
     )
     
-    # Status da solicitação
     status = models.CharField(
         max_length=20,
         choices=REQUEST_STATUS_CHOICES,
@@ -321,7 +397,24 @@ class LoanRequest(models.Model):
         verbose_name='Data da decisão'
     )
     
-    # Técnico responsável pela solicitação
+    # Cancelamento
+    cancelado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='loan_requests_cancelados',
+        verbose_name='Cancelado por'
+    )
+    data_cancelamento = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Data de cancelamento'
+    )
+    motivo_cancelamento = models.TextField(
+        blank=True, null=True,
+        verbose_name='Motivo do cancelamento'
+    )
+    
+    # Técnico responsável
     tecnico_responsavel = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -332,15 +425,33 @@ class LoanRequest(models.Model):
         verbose_name='Técnico responsável'
     )
     
-    # Levantamento dos equipamentos
+    # CONFIRMAÇÃO DUPLA
+    confirmado_pelo_tecnico = models.BooleanField(
+        default=False,
+        verbose_name='Confirmado pelo técnico'
+    )
     data_levantamento = models.DateTimeField(
         null=True,
         blank=True,
         verbose_name='Data de levantamento'
     )
-    confirmado_pelo_tecnico = models.BooleanField(
+    confirmado_pelo_utente = models.BooleanField(
         default=False,
-        verbose_name='Levantamento confirmado pelo técnico'
+        verbose_name='Confirmado pelo utente'
+    )
+    data_confirmacao_utente = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Data de confirmação do utente'
+    )
+    
+    # DEVOLUÇÃO NO MESMO DIA
+    devolucao_mesmo_dia = models.BooleanField(
+        default=False,
+        verbose_name='Devolução no mesmo dia?'
+    )
+    data_prevista_devolucao = models.DateField(
+        null=True, blank=True,
+        verbose_name='Data prevista de devolução'
     )
     
     # Campos de auditoria
@@ -354,7 +465,10 @@ class LoanRequest(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"Solicitação #{self.id} - {self.user.name} ({self.quantity} equipamentos)"
+        if self.pacote:
+            return f"Solicitação #{self.id} - {self.user.name} (Pacote: {self.pacote.name})"
+        count = self.equipments.count()
+        return f"Solicitação #{self.id} - {self.user.name} ({count} equipamentos)"
     
     @property
     def user_name(self):
@@ -368,8 +482,16 @@ class LoanRequest(models.Model):
     def aprovador_name(self):
         return self.aprovado_por.name if self.aprovado_por else None
     
+    @property
+    def confirmador_name(self):
+        return self.cancelado_por.name if self.cancelado_por else None
+    
+    @property
+    def confirmacao_completa(self):
+        """True quando técnico E utente confirmaram"""
+        return self.confirmado_pelo_tecnico and self.confirmado_pelo_utente
+    
     def aprovar(self, aprovador, motivo=''):
-        """Aprova a solicitação"""
         self.status = 'autorizado'
         self.aprovado_por = aprovador
         self.motivo_decisao = motivo
@@ -377,16 +499,33 @@ class LoanRequest(models.Model):
         self.save()
     
     def rejeitar(self, rejeitador, motivo):
-        """Rejeita a solicitação"""
         self.status = 'rejeitado'
         self.aprovado_por = rejeitador
         self.motivo_decisao = motivo
         self.data_decisao = timezone.now()
         self.save()
     
-    def confirmar_levantamento(self, tecnico):
-        """Confirma que o utente levantou os equipamentos"""
+    def cancelar(self, cancelador, motivo=''):
+        """Cancela a solicitação (apenas se pendente/autorizado)"""
+        if self.status not in ['pendente', 'autorizado']:
+            raise ValueError("Apenas solicitações pendentes ou autorizadas podem ser canceladas.")
+        self.status = 'cancelado'
+        self.cancelado_por = cancelador
+        self.data_cancelamento = timezone.now()
+        self.motivo_cancelamento = motivo
+        self.save()
+    
+    def confirmar_levantamento_tecnico(self, tecnico):
+        """Técnico confirma o levantamento"""
         self.confirmado_pelo_tecnico = True
         self.data_levantamento = timezone.now()
         self.tecnico_responsavel = tecnico
         self.save()
+        return self.confirmacao_completa
+    
+    def confirmar_levantamento_utente(self):
+        """Utente confirma o levantamento"""
+        self.confirmado_pelo_utente = True
+        self.data_confirmacao_utente = timezone.now()
+        self.save()
+        return self.confirmacao_completa

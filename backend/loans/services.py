@@ -248,14 +248,11 @@ Obrigado por devolver no prazo!
     
     @classmethod
     def send_pickup_confirmed_notification(cls, loan: Loan):
-        """
-        Envia notificação quando técnico confirma levantamento
-        """
         equipment_name = loan.equipment_name
         tecnico_name = loan.tecnico_entrega.name if loan.tecnico_entrega else 'Técnico'
         return_datetime = cls._get_loan_return_datetime(loan)
         return_date_str = return_datetime.strftime('%d/%m/%Y às %H:%M')
-        
+
         title = "✅ Levantamento confirmado"
         message = f"""
 Empréstimo #{loan.id}
@@ -266,11 +263,47 @@ Data/Hora de devolução: {return_date_str}
 O técnico {tecnico_name} confirmou que você levantou o equipamento.
 Lembre-se de devolvê-lo no prazo estabelecido.
         """.strip()
-        
+
         cls.create_notification(
             user=loan.user,
             notification_type='info',
             title=title,
             message=message,
             action_required=False
+        )
+
+    @classmethod
+    def send_dual_confirmation_pending_notification(cls, loan: Loan, tipo: str):
+        """
+        Envia notificação quando uma das partes confirma e falta a outra.
+        tipo: 'tecnico' ou 'utente'
+        """
+        equipment_name = loan.equipment_name
+        if tipo == 'tecnico':
+            title = "🔄 Confirmação técnica registada"
+            message = f"""
+Empréstimo #{loan.id}
+Equipamento: {equipment_name}
+
+O técnico confirmou o levantamento.
+Aguardando confirmação do utente para ativar o empréstimo.
+            """.strip()
+            recipient = loan.user
+        else:
+            title = "🔄 Confirmação do utente registada"
+            message = f"""
+Empréstimo #{loan.id}
+Equipamento: {equipment_name}
+
+O utente confirmou o levantamento.
+Aguardando confirmação do técnico para ativar o empréstimo.
+            """.strip()
+            recipient = loan.created_by or loan.user
+
+        cls.create_notification(
+            user=recipient,
+            notification_type='info',
+            title=title,
+            message=message,
+            action_required=True
         )

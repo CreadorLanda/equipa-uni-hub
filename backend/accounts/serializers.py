@@ -6,27 +6,26 @@ from .authentication import generate_jwt_token
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """
-    Serializer para o modelo User
-    """
     password = serializers.CharField(write_only=True, validators=[validate_password])
+    created_by_name = serializers.ReadOnlyField(source='created_by.name')
     
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'name', 'role', 'department',
-            'is_active', 'created_at', 'updated_at', 'password'
+            'is_active', 'external_id', 'is_external', 'created_by', 'created_by_name',
+            'created_at', 'updated_at', 'password'
         ]
         extra_kwargs = {
             'password': {'write_only': True},
             'created_at': {'read_only': True},
             'updated_at': {'read_only': True},
+            'created_by': {'read_only': True},
+            'external_id': {'read_only': True},
+            'is_external': {'read_only': True},
         }
     
     def create(self, validated_data):
-        """
-        Cria um novo usuário com senha criptografada
-        """
         password = validated_data.pop('password')
         user = User.objects.create_user(**validated_data)
         user.set_password(password)
@@ -34,28 +33,19 @@ class UserSerializer(serializers.ModelSerializer):
         return user
     
     def update(self, instance, validated_data):
-        """
-        Atualiza usuário, criptografando a senha se fornecida
-        """
         password = validated_data.pop('password', None)
-        
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        
         if password:
             instance.set_password(password)
-        
         instance.save()
         return instance
 
 
 class UserPublicSerializer(serializers.ModelSerializer):
-    """
-    Serializer público para User (sem informações sensíveis)
-    """
     class Meta:
         model = User
-        fields = ['id', 'name', 'email', 'role', 'department']
+        fields = ['id', 'name', 'email', 'role', 'department', 'is_external', 'is_active']
 
 
 class LoginSerializer(serializers.Serializer):

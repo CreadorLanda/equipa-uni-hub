@@ -10,7 +10,8 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import LoanRequest, Loan
 from .serializers import (
     LoanRequestSerializer, LoanRequestListSerializer,
-    LoanRequestApprovalSerializer, LoanRequestConfirmPickupSerializer
+    LoanRequestApprovalSerializer, LoanRequestConfirmPickupSerializer,
+    LoanRequestCancelSerializer
 )
 from notifications.models import Notification
 from .services import LoanNotificationService
@@ -34,15 +35,14 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
     
     def get_serializer_class(self):
-        """
-        Retorna o serializer apropriado baseado na ação
-        """
         if self.action == 'list':
             return LoanRequestListSerializer
         elif self.action in ['aprovar', 'rejeitar']:
             return LoanRequestApprovalSerializer
         elif self.action == 'confirmar_levantamento':
             return LoanRequestConfirmPickupSerializer
+        elif self.action == 'cancelar':
+            return LoanRequestCancelSerializer
         return LoanRequestSerializer
     
     def get_queryset(self):
@@ -244,95 +244,181 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def confirmar_levantamento(self, request, pk=None):
         """
-        Confirma que o utente levantou os equipamentos (apenas técnicos)
+        Retrocompatibilidade: confirma como técnico.
+        """
+        return self.confirmar_levantamento_tecnico(request, pk)
+
+    @action(detail=True, methods=['post'])
+    def confirmar_levantamento_tecnico(self, request, pk=None):
+        """
+        Técnico confirma o levantamento.
+        Se utente já confirmou, cria os empréstimos automaticamente.
         """
         loan_request = self.get_object()
-        
-        # Verifica permissões
+
         if request.user.role not in ['tecnico', 'secretario', 'coordenador']:
             return Response(
-                {'error': 'Apenas técnicos podem confirmar o levantamento.'}, 
+                {'error': 'Apenas técnicos podem confirmar o levantamento.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
+
         if loan_request.status != 'autorizado':
             return Response(
-                {'error': 'Esta solicitação precisa estar autorizada para confirmar levantamento.'}, 
+                {'error': 'Esta solicitação precisa estar autorizada.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         if loan_request.confirmado_pelo_tecnico:
             return Response(
-                {'error': 'O levantamento já foi confirmado.'}, 
+                {'error': 'O técnico já confirmou este levantamento.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         serializer = LoanRequestConfirmPickupSerializer(data=request.data)
-        
         if serializer.is_valid():
-            loan_request.confirmar_levantamento(request.user)
+            completa = loan_request.confirmar_levantamento_tecnico(request.user)
 
-            # Cria empréstimos para cada equipamento selecionado na solicitação
-            equipments = list(loan_request.equipments.all())
-            if not equipments:
-                return Response(
-                    {
-                        'error': 'Esta solicitação não possui equipamentos selecionados para gerar empréstimos. Edite a solicitação e selecione equipamentos ou crie os empréstimos manualmente em /emprestimos.'
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            created_loans = []
-            skipped = []
-            for eq in equipments:
-                try:
-                    # Garante disponibilidade
-                    if not eq.can_be_borrowed():
-                        skipped.append({'equipment': str(eq), 'reason': 'indisponivel'})
-                        continue
-
-                    loan = Loan.objects.create(
-                        user=loan_request.user,
-                        equipment=eq,
-                        expected_return_date=loan_request.expected_return_date,
-                        expected_return_time=loan_request.expected_return_time,
-                        purpose=loan_request.purpose,
-                        notes=(loan_request.notes or '') + f"\n\nCriado da Solicitação #{loan_request.id}",
-                        created_by=request.user,
-                    )
-                    created_loans.append(loan)
-
-                    # Notificação por empréstimo criado
-                    try:
-                        LoanNotificationService.send_loan_created_notification(loan)
-                    except Exception as notify_err:
-                        print(f"Erro ao notificar criação de empréstimo #{loan.id}: {notify_err}")
-                except Exception as create_err:
-                    skipped.append({'equipment': str(eq), 'reason': str(create_err)})
-
-            # Envia notificação de confirmação de levantamento
-            try:
-                self._send_pickup_confirmation_notification(loan_request)
-            except Exception as e:
-                print(f"Erro ao enviar notificação de confirmação: {e}")
-            
-            return Response(
-                {
-                    'message': 'Levantamento confirmado e empréstimos gerados com sucesso.' if created_loans else 'Levantamento confirmado, mas nenhum empréstimo pôde ser gerado.',
+            if completa:
+                return self._gerar_emprestimos_da_solicitacao(loan_request, request)
+            else:
+                return Response({
+                    'message': 'Confirmação técnica registada. Aguardando confirmação do utente.',
                     'loan_request': LoanRequestSerializer(loan_request).data,
-                    'created_loans': [
-                        {
-                            'id': loan.id,
-                            'equipment_name': loan.equipment_name,
-                            'expected_return_date': loan.expected_return_date,
-                        } for loan in created_loans
-                    ],
-                    'skipped': skipped,
-                },
-                status=status.HTTP_200_OK
-            )
-        
+                }, status=status.HTTP_200_OK)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def confirmar_levantamento_utente(self, request, pk=None):
+        """
+        Utente confirma o levantamento.
+        Se técnico já confirmou, cria os empréstimos automaticamente.
+        """
+        loan_request = self.get_object()
+
+        if loan_request.user != request.user:
+            return Response(
+                {'error': 'Apenas o utente pode confirmar o seu próprio levantamento.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if loan_request.status != 'autorizado':
+            return Response(
+                {'error': 'Esta solicitação precisa estar autorizada.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if loan_request.confirmado_pelo_utente:
+            return Response(
+                {'error': 'Já confirmou o levantamento.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = LoanRequestConfirmPickupSerializer(data=request.data)
+        if serializer.is_valid():
+            completa = loan_request.confirmar_levantamento_utente()
+
+            if completa:
+                return self._gerar_emprestimos_da_solicitacao(loan_request, request)
+            else:
+                return Response({
+                    'message': 'Confirmação registada. Aguardando confirmação do técnico.',
+                    'loan_request': LoanRequestSerializer(loan_request).data,
+                }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def cancelar(self, request, pk=None):
+        """
+        Cancela uma solicitação pendente ou autorizada.
+        """
+        loan_request = self.get_object()
+
+        if loan_request.status not in ['pendente', 'autorizado']:
+            return Response({
+                'error': 'Apenas solicitações pendentes ou autorizadas podem ser canceladas.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        pode_cancelar = (
+            request.user == loan_request.user or
+            request.user.role in ['tecnico', 'coordenador']
+        )
+        if not pode_cancelar:
+            return Response({
+                'error': 'Não tem permissão para cancelar esta solicitação.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = LoanRequestCancelSerializer(
+            data=request.data,
+            context={'action': 'cancelar_sem_motivo'}
+        )
+        if serializer.is_valid():
+            motivo = serializer.validated_data.get('motivo', '')
+            loan_request.cancelar(request.user, motivo)
+
+            return Response({
+                'message': 'Solicitação cancelada com sucesso.',
+                'loan_request': LoanRequestSerializer(loan_request).data,
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def _gerar_emprestimos_da_solicitacao(self, loan_request, request):
+        """
+        Gera os empréstimos individuais a partir da solicitação confirmada.
+        """
+        equipments = list(loan_request.equipments.all())
+        created_loans = []
+        skipped = []
+
+        for eq in equipments:
+            try:
+                if not eq.can_be_borrowed():
+                    skipped.append({'equipment': str(eq), 'reason': 'indisponivel'})
+                    continue
+
+                loan = Loan.objects.create(
+                    user=loan_request.user,
+                    equipment=eq,
+                    expected_return_date=loan_request.expected_return_date,
+                    expected_return_time=loan_request.expected_return_time,
+                    purpose=loan_request.purpose,
+                    notes=(loan_request.notes or '') + f"\n\nCriado da Solicitação #{loan_request.id}",
+                    created_by=request.user,
+                )
+                loan.confirmado_tecnico = loan_request.confirmado_pelo_tecnico
+                loan.data_confirmacao_tecnico = loan_request.data_levantamento
+                loan.confirmado_utente = loan_request.confirmado_pelo_utente
+                loan.data_confirmacao_utente = loan_request.data_confirmacao_utente
+                if loan_request.confirmado_pelo_tecnico and loan_request.confirmado_pelo_utente:
+                    loan.status = 'ativo'
+                    loan.tecnico_entrega = loan_request.tecnico_responsavel
+                loan.save()
+                created_loans.append(loan)
+
+                try:
+                    LoanNotificationService.send_loan_created_notification(loan)
+                except Exception as notify_err:
+                    print(f"Erro ao notificar criação de empréstimo #{loan.id}: {notify_err}")
+            except Exception as create_err:
+                skipped.append({'equipment': str(eq), 'reason': str(create_err)})
+
+        try:
+            self._send_pickup_confirmation_notification(loan_request)
+        except Exception as e:
+            print(f"Erro ao enviar notificação de confirmação: {e}")
+
+        return Response({
+            'message': 'Levantamento confirmado e empréstimos gerados com sucesso.' if created_loans else 'Nenhum empréstimo pôde ser gerado.',
+            'loan_request': LoanRequestSerializer(loan_request).data,
+            'created_loans': [{
+                'id': loan.id,
+                'equipment_name': loan.equipment_name,
+                'expected_return_date': loan.expected_return_date,
+            } for loan in created_loans],
+            'skipped': skipped,
+        }, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['get'])
     def download_pdf(self, request, pk=None):

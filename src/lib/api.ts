@@ -196,6 +196,15 @@ export const loansAPI = {
   confirmarLevantamento: (id: string, data?: any) =>
     api.post(`/loans/${id}/confirmar_levantamento/`, data),
 
+  confirmarTecnico: (id: string, data?: any) =>
+    api.post(`/loans/${id}/confirmar_tecnico/`, data),
+
+  confirmarUtente: (id: string, data?: any) =>
+    api.post(`/loans/${id}/confirmar_utente/`, data),
+
+  cancelar: (id: string, data?: any) =>
+    api.post(`/loans/${id}/cancelar/`, data),
+
   stats: () =>
     api.get('/loans/stats/'),
 };
@@ -232,6 +241,18 @@ export const loanRequestsAPI = {
 
   confirmarLevantamento: (id: string, notes?: string) =>
     api.post(`/loan-requests/${id}/confirmar_levantamento/`, { notes }),
+
+  confirmarLevantamentoTecnico: (id: string, notes?: string) =>
+    api.post(`/loan-requests/${id}/confirmar_levantamento_tecnico/`, { notes }),
+
+  confirmarLevantamentoUtente: (id: string, notes?: string) =>
+    api.post(`/loan-requests/${id}/confirmar_levantamento_utente/`, { notes }),
+
+  cancelar: (id: string, motivo?: string) =>
+    api.post(`/loan-requests/${id}/cancelar/`, { motivo }),
+
+  downloadPdf: (id: string) =>
+    `${api.baseURL}/loan-requests/${id}/download_pdf/`,
 };
 
 export const reservationsAPI = {
