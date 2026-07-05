@@ -36,6 +36,8 @@ const statusOptions: { value: LoanStatus; label: string; color: string }[] = [
   { value: 'cancelado', label: 'Cancelado', color: 'bg-muted text-muted-foreground' }
 ];
 
+const filterStatusOptions = statusOptions.filter(s => s.value !== 'cancelado');
+
 export const Emprestimos = () => {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [availableEquipments, setAvailableEquipments] = useState<Equipment[]>([]);
@@ -640,7 +642,7 @@ export const Emprestimos = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os status</SelectItem>
-                  {statusOptions.map(status => (
+                  {filterStatusOptions.map(status => (
                     <SelectItem key={status.value} value={status.value}>
                       {status.label}
                     </SelectItem>
