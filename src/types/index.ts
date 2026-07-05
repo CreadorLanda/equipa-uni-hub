@@ -1,4 +1,4 @@
-export type UserRole = 'tecnico' | 'docente' | 'secretario' | 'coordenador';
+export type UserRole = 'admin' | 'tecnico' | 'docente' | 'secretario' | 'coordenador';
 
 export interface User {
   id: string;
@@ -163,6 +163,22 @@ export interface Notification {
   read: boolean;
   actionRequired: boolean;
   createdAt: string;
+}
+
+export interface AtribuidorEventual {
+  id: string;
+  nome: string;
+  morada: string;
+  grau_academico: string;
+  entidade_empregadora?: string;
+  sexo: 'M' | 'F' | 'O';
+  funcao: 'formador' | 'palestrante' | 'monitor' | 'mentor' | 'outro';
+  funcao_outro?: string;
+  is_active: boolean;
+  created_by?: string;
+  created_by_name?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DashboardStats {

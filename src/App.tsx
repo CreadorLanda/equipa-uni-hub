@@ -10,7 +10,7 @@ import { Login } from "@/pages/Login";
 import { Dashboard } from "@/pages/Dashboard";
 import { Equipamentos } from "@/pages/Equipamentos";
 import { Emprestimos } from "@/pages/Emprestimos";
-import { Reservas } from "@/pages/Reservas";
+import { Atribuidores } from "@/pages/Atribuidores";
 import { Relatorios } from "@/pages/Relatorios";
 import { Consultar } from "@/pages/Consultar";
 import { Notificacoes } from "@/pages/Notificacoes";
@@ -41,7 +41,7 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="/equipamentos" element={
-                <ProtectedRoute allowedRoles={['tecnico']}>
+                <ProtectedRoute allowedRoles={['admin', 'tecnico']}>
                   <Equipamentos />
                 </ProtectedRoute>
               } />
@@ -50,18 +50,18 @@ const App = () => (
                   <Emprestimos />
                 </ProtectedRoute>
               } />
-              <Route path="/reservas" element={
-                <ProtectedRoute>
-                  <Reservas />
+              <Route path="/atribuidores" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Atribuidores />
                 </ProtectedRoute>
               } />
               <Route path="/pacotes" element={
-                <ProtectedRoute allowedRoles={['tecnico', 'secretario', 'coordenador']}>
+                <ProtectedRoute allowedRoles={['admin', 'tecnico', 'secretario', 'coordenador']}>
                   <Pacotes />
                 </ProtectedRoute>
               } />
               <Route path="/relatorios" element={
-                <ProtectedRoute allowedRoles={['tecnico']}>
+                <ProtectedRoute allowedRoles={['admin', 'tecnico']}>
                   <Relatorios />
                 </ProtectedRoute>
               } />
@@ -76,7 +76,7 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="/utilizadores" element={
-                <ProtectedRoute allowedRoles={['tecnico']}>
+                <ProtectedRoute allowedRoles={['admin', 'tecnico']}>
                   <Utilizadores />
                 </ProtectedRoute>
               } />

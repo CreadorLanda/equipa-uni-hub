@@ -35,6 +35,12 @@ urlpatterns = [
     path('api/v1/', include('equipment.urls')),
     path('api/v1/', include('loans.urls')),
     path('api/v1/', include('reservations.urls')),
+    # Atribuidores eventuais via UserViewSet (actions: atribuidores, atribuidores_create, etc.)
+    path('api/v1/atribuidores/', UserViewSet.as_view({'get': 'atribuidores'}), name='atribuidores-list'),
+    path('api/v1/atribuidores/criar/', UserViewSet.as_view({'post': 'atribuidores_create'}), name='atribuidores-create'),
+    path('api/v1/atribuidores/<int:pk>/editar/', UserViewSet.as_view({'put': 'atribuidores_update', 'patch': 'atribuidores_update'}), name='atribuidores-update'),
+    path('api/v1/atribuidores/<int:pk>/ativar/', UserViewSet.as_view({'post': 'atribuidores_activate'}), name='atribuidores-activate'),
+    path('api/v1/atribuidores/<int:pk>/desativar/', UserViewSet.as_view({'post': 'atribuidores_deactivate'}), name='atribuidores-deactivate'),
     path('api/v1/', include('notifications.urls')),
     path('api/v1/dashboard/stats/', dashboard_stats, name='dashboard-stats'),
 ]

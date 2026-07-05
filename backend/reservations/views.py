@@ -49,8 +49,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
         """
         queryset = Reservation.objects.select_related('user', 'equipment').all()
         
-        # Apenas técnico e coordenador veem todas. Demais (docente, secretário) veem apenas as próprias
-        if self.request.user.role not in ['tecnico', 'coordenador']:
+        # Apenas admin, técnico e coordenador veem todas.
+        if self.request.user.role not in ['admin', 'tecnico', 'coordenador']:
             queryset = queryset.filter(user=self.request.user)
         
         # Filtro por reservas expirando em breve
@@ -117,7 +117,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         Personaliza a exclusão de reserva
         """
         # Apenas coordenadores podem excluir reservas
-        if self.request.user.role != 'coordenador':
+        if self.request.user.role not in ['admin', 'coordenador']:
             raise permissions.PermissionDenied(
                 'Apenas coordenadores podem excluir reservas.'
             )
@@ -166,7 +166,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         reservation = self.get_object()
         
         # Verifica permissões
-        if request.user.role not in ['tecnico', 'secretario', 'coordenador']:
+        if request.user.role not in ['admin', 'tecnico', 'secretario', 'coordenador']:
             return Response(
                 {'error': 'Apenas técnicos, secretários e coordenadores podem confirmar reservas.'}, 
                 status=status.HTTP_403_FORBIDDEN
@@ -242,7 +242,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
         reservation = self.get_object()
         
         # Verifica permissões
-        if request.user.role not in ['tecnico', 'secretario', 'coordenador']:
+        if request.user.role not in ['admin', 'tecnico', 'secretario', 'coordenador']:
             return Response(
                 {'error': 'Apenas técnicos, secretários e coordenadores podem converter reservas em empréstimos.'}, 
                 status=status.HTTP_403_FORBIDDEN

@@ -8,7 +8,7 @@ from .authentication import generate_jwt_token
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     created_by_name = serializers.ReadOnlyField(source='created_by.name')
-    
+
     class Meta:
         model = User
         fields = [
@@ -24,6 +24,11 @@ class UserSerializer(serializers.ModelSerializer):
             'external_id': {'read_only': True},
             'is_external': {'read_only': True},
         }
+
+    def validate_role(self, value):
+        if value == 'admin':
+            raise serializers.ValidationError('A role "admin" não pode ser atribuída diretamente. Contacte o suporte.')
+        return value
     
     def create(self, validated_data):
         password = validated_data.pop('password')

@@ -130,10 +130,10 @@ class LoanViewSet(viewsets.ModelViewSet):
         """
         Personaliza a exclusão de empréstimo
         """
-        # Apenas coordenadores podem excluir empréstimos
-        if self.request.user.role != 'coordenador':
+        # Apenas admin ou coordenadores podem excluir empréstimos
+        if self.request.user.role not in ['admin', 'coordenador']:
             raise permissions.PermissionDenied(
-                'Apenas coordenadores podem excluir empréstimos.'
+                'Apenas admin ou coordenadores podem excluir empréstimos.'
             )
         
         # Não permite excluir empréstimos ativos

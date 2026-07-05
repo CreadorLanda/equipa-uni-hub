@@ -32,16 +32,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 
 const menuItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
-  { title: "Equipamentos", url: "/equipamentos", icon: MonitorSpeaker, roles: ['tecnico'] }, // Só técnico pode gerenciar
-  { title: "Empréstimos", url: "/emprestimos", icon: HandCoins, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
-  { title: "Reservas", url: "/reservas", icon: Calendar, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
-  { title: "Pacotes", url: "/pacotes", icon: Package, roles: ['tecnico', 'secretario', 'coordenador'] },
-  { title: "Solicitações", url: "/solicitacoes", icon: FileText, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
-  { title: "Utilizadores", url: "/utilizadores", icon: Users, roles: ['tecnico'] }, // Só técnico pode gerenciar utilizadores
-  { title: "Relatórios", url: "/relatorios", icon: FileText, roles: ['tecnico'] }, // Só técnico pode acessar relatórios
-  { title: "Consultar", url: "/consultar", icon: Search, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
-  { title: "Notificações", url: "/notificacoes", icon: Bell, roles: ['tecnico', 'docente', 'secretario', 'coordenador'] },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, roles: ['admin', 'tecnico', 'docente', 'secretario', 'coordenador'] },
+  { title: "Equipamentos", url: "/equipamentos", icon: MonitorSpeaker, roles: ['admin', 'tecnico'] },
+  { title: "Empréstimos", url: "/emprestimos", icon: HandCoins, roles: ['admin', 'tecnico', 'docente', 'secretario', 'coordenador'] },
+  { title: "Pacotes", url: "/pacotes", icon: Package, roles: ['admin', 'tecnico', 'secretario', 'coordenador'] },
+  { title: "Solicitações", url: "/solicitacoes", icon: FileText, roles: ['admin', 'tecnico', 'docente', 'secretario', 'coordenador'] },
+  { title: "Atribuidores", url: "/atribuidores", icon: UserPlus, roles: ['admin'] },
+  { title: "Utilizadores", url: "/utilizadores", icon: Users, roles: ['admin', 'tecnico'] },
+  { title: "Relatórios", url: "/relatorios", icon: FileText, roles: ['admin', 'tecnico'] },
+  { title: "Consultar", url: "/consultar", icon: Search, roles: ['admin', 'tecnico', 'docente', 'secretario', 'coordenador'] },
+  { title: "Notificações", url: "/notificacoes", icon: Bell, roles: ['admin', 'tecnico', 'docente', 'secretario', 'coordenador'] },
 ];
 
 export function AppSidebar() {

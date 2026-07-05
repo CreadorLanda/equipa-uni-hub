@@ -5,11 +5,12 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import authenticate
 from django.db.models import Q
-from .models import User
+from .models import User, AtribuidorEventual
 from .serializers import (
     UserSerializer, UserPublicSerializer, LoginSerializer,
     AuthTokenSerializer, ChangePasswordSerializer
 )
+from .atribuidor_serializers import AtribuidorEventualSerializer
 
 
 class AuthViewSet(viewsets.GenericViewSet):
@@ -68,39 +69,34 @@ class AuthViewSet(viewsets.GenericViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+ADMIN_ROLES = ['admin']
+TECH_OR_ADMIN = ['admin', 'tecnico']
+SECRETARY_OR_ABOVE = ['admin', 'tecnico', 'secretario']
+
+
 class UserViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para gerenciamento de usuários
-    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def get_serializer_class(self):
-        """
-        Retorna o serializer apropriado baseado na ação
-        """
         if self.action in ['list', 'retrieve']:
             return UserPublicSerializer
+        elif self.action in ['atribuidores_list', 'atribuidores_create', 'atribuidores_update']:
+            return AtribuidorEventualSerializer
         return UserSerializer
-    
+
     def get_queryset(self):
-        """
-        Filtra usuários baseado nos parâmetros de consulta
-        """
         queryset = User.objects.all()
-        
-        # Filtro por função
+
         role = self.request.query_params.get('role')
         if role:
             queryset = queryset.filter(role=role)
-        
-        # Filtro por departamento
+
         department = self.request.query_params.get('department')
         if department:
             queryset = queryset.filter(department__icontains=department)
-        
-        # Busca por nome ou email
+
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
@@ -108,24 +104,19 @@ class UserViewSet(viewsets.ModelViewSet):
                 Q(email__icontains=search) |
                 Q(username__icontains=search)
             )
-        
-        # Filtro por status ativo
+
         is_active = self.request.query_params.get('is_active')
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
-        
+
         return queryset.order_by('name')
-    
+
     def perform_create(self, serializer):
         role = serializer.validated_data.get('role')
 
-        # Apenas o chefe da DTI (coordenador) pode criar utilizadores locais
-        if self.request.user.role != 'coordenador':
-            raise PermissionDenied(
-                'Apenas o administrador (chefe da DTI) pode criar utilizadores.'
-            )
+        if self.request.user.role not in ADMIN_ROLES:
+            raise PermissionDenied('Apenas o Admin (Chefe da DTI) pode criar utilizadores.')
 
-        # Roles externas (docente, secretario, coordenador) devem vir do sistema externo
         if role in User.EXTERNAL_ROLES:
             from .external_person_service import external_person_service
             person_data = external_person_service.lookup_person(
@@ -133,8 +124,7 @@ class UserViewSet(viewsets.ModelViewSet):
             )
             if not person_data:
                 raise PermissionDenied(
-                    f'Utilizadores com função "{role}" devem ser registados no Sistema de Gestão de Pessoas externo. '
-                    f'Consulte o sistema externo antes de registar manualmente.'
+                    f'Utilizadores com função "{role}" devem estar no Sistema de Gestão de Pessoas externo.'
                 )
             serializer.save(
                 is_external=True,
@@ -142,91 +132,98 @@ class UserViewSet(viewsets.ModelViewSet):
                 created_by=self.request.user
             )
         else:
-            # Técnico (atribuidor eventual) - registo local pelo admin
             serializer.save(
                 is_external=False,
                 created_by=self.request.user
             )
-    
+
     def perform_update(self, serializer):
-        """
-        Personaliza a atualização de usuário
-        """
-        # Usuários podem editar seus próprios dados
-        if self.get_object() == self.request.user:
+        instance = self.get_object()
+        if instance == self.request.user:
             serializer.save()
             return
-        
-        # Apenas técnicos, coordenadores e secretários podem editar outros usuários
-        if self.request.user.role not in ['tecnico', 'coordenador', 'secretario']:
-            raise PermissionDenied(
-                'Você não tem permissão para editar este usuário.'
-            )
+        if self.request.user.role not in SECRETARY_OR_ABOVE:
+            raise PermissionDenied('Não tem permissão para editar este utilizador.')
         serializer.save()
-    
+
     def perform_destroy(self, instance):
-        """
-        Personaliza a exclusão de usuário (soft delete)
-        """
-        # Apenas técnicos e coordenadores podem excluir usuários
-        if self.request.user.role not in ['tecnico', 'coordenador']:
-            raise PermissionDenied(
-                'Apenas técnicos e coordenadores podem excluir usuários.'
-            )
-        
-        # Não permite excluir a si mesmo
+        if self.request.user.role not in TECH_OR_ADMIN:
+            raise PermissionDenied('Apenas técnicos e admin podem remover utilizadores.')
         if instance == self.request.user:
-            raise PermissionDenied(
-                'Você não pode excluir sua própria conta.'
-            )
-        
-        # Soft delete - apenas marca como inativo
+            raise PermissionDenied('Não pode remover a sua própria conta.')
         instance.is_active = False
         instance.save()
-    
+
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
-        """
-        Ativa um usuário
-        """
-        if request.user.role != 'coordenador':
-            return Response(
-                {'error': 'Apenas coordenadores podem ativar usuários.'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+        if request.user.role not in ADMIN_ROLES:
+            return Response({'error': 'Apenas o Admin pode ativar utilizadores.'}, status=status.HTTP_403_FORBIDDEN)
         user = self.get_object()
         user.is_active = True
         user.save()
-        
-        return Response(
-            {'message': f'Usuário {user.name} ativado com sucesso.'}, 
-            status=status.HTTP_200_OK
-        )
-    
+        return Response({'message': f'Utilizador {user.name} ativado com sucesso.'})
+
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
-        """
-        Desativa um usuário
-        """
-        if request.user.role != 'coordenador':
-            return Response(
-                {'error': 'Apenas coordenadores podem desativar usuários.'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+        if request.user.role not in ADMIN_ROLES:
+            return Response({'error': 'Apenas o Admin pode desativar utilizadores.'}, status=status.HTTP_403_FORBIDDEN)
         user = self.get_object()
-        
         if user == request.user:
-            return Response(
-                {'error': 'Você não pode desativar sua própria conta.'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({'error': 'Não pode desativar a sua própria conta.'}, status=status.HTTP_400_BAD_REQUEST)
         user.is_active = False
         user.save()
-        
-        return Response(
-            {'message': f'Usuário {user.name} desativado com sucesso.'}, 
-            status=status.HTTP_200_OK
-        )
+        return Response({'message': f'Utilizador {user.name} desativado com sucesso.'})
+
+    # ---- Atribuidores Eventuais CRUD (admin-only) ----
+    @action(detail=False, methods=['get'])
+    def atribuidores(self, request):
+        if request.user.role not in ADMIN_ROLES:
+            return Response({'error': 'Apenas Admin.'}, status=status.HTTP_403_FORBIDDEN)
+        qs = AtribuidorEventual.objects.all().order_by('nome')
+        search = request.query_params.get('search')
+        if search:
+            qs = qs.filter(nome__icontains=search)
+        is_active = request.query_params.get('is_active')
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active.lower() == 'true')
+        serializer = AtribuidorEventualSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def atribuidores_create(self, request):
+        if request.user.role not in ADMIN_ROLES:
+            return Response({'error': 'Apenas Admin.'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = AtribuidorEventualSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(created_by=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['put', 'patch'])
+    def atribuidores_update(self, request, pk=None):
+        if request.user.role not in ADMIN_ROLES:
+            return Response({'error': 'Apenas Admin.'}, status=status.HTTP_403_FORBIDDEN)
+        obj = AtribuidorEventual.objects.get(pk=pk)
+        serializer = AtribuidorEventualSerializer(obj, data=request.data, partial=request.method == 'PATCH')
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def atribuidores_activate(self, request, pk=None):
+        if request.user.role not in ADMIN_ROLES:
+            return Response({'error': 'Apenas Admin.'}, status=status.HTTP_403_FORBIDDEN)
+        obj = AtribuidorEventual.objects.get(pk=pk)
+        obj.is_active = True
+        obj.save()
+        return Response({'message': f'{obj.nome} ativado.'})
+
+    @action(detail=True, methods=['post'])
+    def atribuidores_deactivate(self, request, pk=None):
+        if request.user.role not in ADMIN_ROLES:
+            return Response({'error': 'Apenas Admin.'}, status=status.HTTP_403_FORBIDDEN)
+        obj = AtribuidorEventual.objects.get(pk=pk)
+        obj.is_active = False
+        obj.save()
+        return Response({'message': f'{obj.nome} desativado.'})

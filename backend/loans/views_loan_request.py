@@ -55,8 +55,8 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
         
         user = self.request.user
         
-        # Coordenadores (reitoria) veem todas
-        if user.role == 'coordenador':
+        # Admin e Coordenadores (reitoria) veem todas
+        if user.role in ['admin', 'coordenador']:
             return queryset
         
         # Técnicos veem todas as solicitações
@@ -159,9 +159,9 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
         loan_request = self.get_object()
         
         # Verifica permissões
-        if request.user.role != 'coordenador':
+        if request.user.role not in ['admin', 'coordenador']:
             return Response(
-                {'error': 'Apenas coordenadores (reitoria) podem aprovar solicitações.'}, 
+                {'error': 'Apenas admin ou coordenadores (reitoria) podem aprovar solicitações.'}, 
                 status=status.HTTP_403_FORBIDDEN
             )
         
@@ -204,9 +204,9 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
         loan_request = self.get_object()
         
         # Verifica permissões
-        if request.user.role != 'coordenador':
+        if request.user.role not in ['admin', 'coordenador']:
             return Response(
-                {'error': 'Apenas coordenadores (reitoria) podem rejeitar solicitações.'}, 
+                {'error': 'Apenas admin ou coordenadores (reitoria) podem rejeitar solicitações.'}, 
                 status=status.HTTP_403_FORBIDDEN
             )
         

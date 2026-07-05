@@ -351,6 +351,25 @@ export const packagesAPI = {
     api.get('/packages/available/'),
 };
 
+export const atribuidoresAPI = {
+  list: (params?: Record<string, any>) => {
+    const q = params ? '?' + new URLSearchParams(params).toString() : '';
+    return api.get(`/atribuidores/${q}`);
+  },
+
+  create: (data: any) =>
+    api.post('/atribuidores/criar/', data),
+
+  update: (id: string, data: any) =>
+    api.put(`/atribuidores/${id}/editar/`, data),
+
+  activate: (id: string) =>
+    api.post(`/atribuidores/${id}/ativar/`),
+
+  deactivate: (id: string) =>
+    api.post(`/atribuidores/${id}/desativar/`),
+};
+
 export const dashboardAPI = {
   stats: () =>
     api.get('/dashboard/stats/'),
