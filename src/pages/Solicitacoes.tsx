@@ -86,15 +86,15 @@ export const Solicitacoes = () => {
   };
 
   const canCreateRequest = () => {
-    return user?.role && ['tecnico', 'secretario', 'coordenador', 'docente'].includes(user.role);
+    return user?.role && ['admin', 'tecnico', 'secretario', 'coordenador', 'docente'].includes(user.role);
   };
 
   const canApprove = () => {
-    return user?.role === 'coordenador';
+    return user?.role && ['admin', 'coordenador'].includes(user.role);
   };
 
   const canConfirmPickup = () => {
-    return user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role);
+    return user?.role && ['admin', 'tecnico', 'secretario', 'coordenador'].includes(user.role);
   };
 
   const filteredRequests = requests.filter(request => {
@@ -266,6 +266,22 @@ export const Solicitacoes = () => {
         description: "Não foi possível rejeitar a solicitação.",
         variant: "destructive"
       });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancel = async (id: string) => {
+    if (!confirm("Tem a certeza que deseja cancelar esta solicitação?")) return;
+    setSubmitting(true);
+    try {
+      await loanRequestsAPI.cancelar(id);
+      setRequests(prev => prev.map(r =>
+        r.id === id ? { ...r, status: 'cancelado' as LoanRequestStatus } : r
+      ));
+      toast({ title: "Solicitação cancelada", description: "A solicitação foi cancelada com sucesso." });
+    } catch (error) {
+      toast({ title: "Erro ao cancelar", description: "Não foi possível cancelar.", variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
@@ -591,34 +607,27 @@ export const Solicitacoes = () => {
                         <TableCell>{formatDate(request.expectedReturnDate)}</TableCell>
                         <TableCell>{getStatusBadge(request.status)}</TableCell>
                         <TableCell>
-                          {canApprove() && (
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedRequest(request);
-                                  setShowApprovalDialog(true);
-                                }}
-                                className="bg-success text-success-foreground hover:bg-success/90"
-                              >
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Aprovar
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedRequest(request);
-                                  setShowRejectionDialog(true);
-                                }}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                <XCircle className="w-4 h-4 mr-1" />
-                                Rejeitar
-                              </Button>
-                            </div>
-                          )}
+                          <div className="flex gap-2 flex-wrap">
+                            {canApprove() && (
+                              <>
+                                <Button variant="outline" size="sm"
+                                  onClick={() => { setSelectedRequest(request); setShowApprovalDialog(true); }}
+                                  className="bg-success text-success-foreground hover:bg-success/90">
+                                  <CheckCircle className="w-4 h-4 mr-1" /> Aprovar
+                                </Button>
+                                <Button variant="outline" size="sm"
+                                  onClick={() => { setSelectedRequest(request); setShowRejectionDialog(true); }}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                  <XCircle className="w-4 h-4 mr-1" /> Rejeitar
+                                </Button>
+                              </>
+                            )}
+                            <Button variant="outline" size="sm"
+                              onClick={() => handleCancel(request.id)}
+                              className="text-muted-foreground">
+                              <XCircle className="w-4 h-4 mr-1" /> Cancelar
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -670,19 +679,19 @@ export const Solicitacoes = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          {canConfirmPickup() && !request.confirmadoPeloTecnico && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedRequest(request);
-                                setShowConfirmPickupDialog(true);
-                              }}
-                            >
-                              <CheckSquare className="w-4 h-4 mr-1" />
-                              Confirmar Levantamento
+                          <div className="flex gap-2 flex-wrap">
+                            {canConfirmPickup() && !request.confirmadoPeloTecnico && (
+                              <Button variant="outline" size="sm"
+                                onClick={() => { setSelectedRequest(request); setShowConfirmPickupDialog(true); }}>
+                                <CheckSquare className="w-4 h-4 mr-1" /> Confirmar Levantamento
+                              </Button>
+                            )}
+                            <Button variant="outline" size="sm"
+                              onClick={() => handleCancel(request.id)}
+                              className="text-muted-foreground">
+                              <XCircle className="w-4 h-4 mr-1" /> Cancelar
                             </Button>
-                          )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

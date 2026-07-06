@@ -6,94 +6,75 @@ from loans.models import Loan, LoanRequest
 from notifications.models import Notification
 
 
+NORMAL_EXPIRY_HOURS = 24
+SPECIAL_EXPIRY_HOURS = 72
+
+
 class Command(BaseCommand):
-    help = 'Cancela automaticamente solicitações/empréstimos que ficaram sem confirmação completa por X dias'
+    help = 'Cancela automaticamente solicitações/empréstimos que expiraram sem confirmação'
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            '--days',
-            type=int,
-            default=None,
-            help='Número de dias sem confirmação para auto-cancelar (padrão: valor em settings)'
-        )
-        parser.add_argument(
-            '--dry-run',
-            action='store_true',
-            help='Apenas lista o que seria cancelado, sem executar'
-        )
-        parser.add_argument(
-            '--verbose',
-            action='store_true',
-            help='Mostra informações detalhadas'
-        )
+        parser.add_argument('--dry-run', action='store_true', help='Apenas lista, sem executar')
+        parser.add_argument('--verbose', action='store_true', help='Mostra detalhes')
 
     def handle(self, *args, **options):
-        days = options['days'] or getattr(settings, 'AUTO_CANCEL_DAYS', 3)
         dry_run = options['dry_run']
         verbose = options['verbose']
-        cutoff = timezone.now() - timedelta(days=days)
-        today = timezone.now().date()
-
-        self.stdout.write(f"🔍 Auto-cancel: solicitações sem confirmação há >{days} dias")
-        if dry_run:
-            self.stdout.write(self.style.WARNING("   Modo DRY-RUN — nenhuma alteração será feita"))
-
+        now = timezone.now()
         total = 0
 
-        # 1. LoanRequests pendentes/autorizadas sem confirmação completa
-        pendentes = LoanRequest.objects.filter(
-            status__in=['pendente', 'autorizado'],
-            created_at__lt=cutoff
-        )
-        for req in pendentes:
+        self.stdout.write(f"🔍 Auto-cancel: solicitações sem confirmação no prazo")
+        if dry_run:
+            self.stdout.write(self.style.WARNING("   Modo DRY-RUN — sem alterações"))
+
+        # LoanRequests: normais expiram 24h, especiais (com quantity) 72h
+        for req in LoanRequest.objects.filter(status__in=['pendente', 'autorizado']):
             if req.confirmado_pelo_tecnico and req.confirmado_pelo_utente:
                 continue
+            expiry_hours = SPECIAL_EXPIRY_HOURS if req.is_special else NORMAL_EXPIRY_HOURS
+            cutoff = req.created_at + timedelta(hours=expiry_hours)
+            if now < cutoff:
+                continue
+
             if verbose:
-                self.stdout.write(
-                    f"  LR#{req.id} - {req.user_name} - status={req.status} "
-                    f"criada={req.created_at.strftime('%d/%m/%Y')}"
-                )
+                self.stdout.write(f"  LR#{req.id} - {req.user_name} - expirou ({expiry_hours}h)")
             if not dry_run:
                 req.cancelar(
                     cancelador=None,
-                    motivo=f'Cancelamento automático por falta de confirmação em {days} dias.'
+                    motivo=f'Cancelamento automático: prazo de {expiry_hours}h expirado sem confirmação.'
                 )
                 Notification.objects.create(
-                    user=req.user,
-                    type='warning',
-                    title='Solicitação cancelada automaticamente',
-                    message=f'A solicitação #{req.id} foi cancelada por não ter sido confirmada dentro de {days} dias.',
+                    user=req.user, type='warning',
+                    title='Solicitação cancelada (prazo expirado)',
+                    message=f'A solicitação #{req.id} expirou após {expiry_hours}h sem confirmação.',
                     action_required=False
                 )
             total += 1
 
-        # 2. Loans pendentes sem confirmação dupla
-        loans_pendentes = Loan.objects.filter(
-            status='pendente',
-            created_at__lt=cutoff
-        )
-        for loan in loans_pendentes:
+        # Loans pendentes: expiram 24h
+        for loan in Loan.objects.filter(status='pendente'):
             if loan.confirmado_tecnico and loan.confirmado_utente:
                 continue
+            cutoff = loan.created_at + timedelta(hours=NORMAL_EXPIRY_HOURS)
+            if now < cutoff:
+                continue
+
             if verbose:
-                self.stdout.write(
-                    f"  Loan#{loan.id} - {loan.user_name} - criada={loan.created_at.strftime('%d/%m/%Y')}"
-                )
+                self.stdout.write(f"  Loan#{loan.id} - {loan.user_name} - expirou (24h)")
             if not dry_run:
                 loan.status = 'cancelado'
-                loan.notes = f"{loan.notes or ''}\n\nCancelamento automático por falta de confirmação em {days} dias.".strip()
+                loan.notes = f"{loan.notes or ''}\n\nCancelamento automático: prazo de 24h expirado.".strip()
                 loan.save()
                 Notification.objects.create(
-                    user=loan.user,
-                    type='warning',
-                    title='Empréstimo cancelado automaticamente',
-                    message=f'O empréstimo #{loan.id} foi cancelado por não ter sido confirmado dentro de {days} dias.',
+                    user=loan.user, type='warning',
+                    title='Empréstimo cancelado (prazo expirado)',
+                    message=f'O empréstimo #{loan.id} expirou após 24h sem confirmação.',
                     action_required=False
                 )
             total += 1
 
         if total == 0:
-            self.stdout.write(self.style.SUCCESS("✨ Nenhum registo para cancelar"))
+            self.stdout.write(self.style.SUCCESS("✨ Nenhum registo expirado"))
         else:
             action = "seriam" if dry_run else "foram"
             self.stdout.write(self.style.SUCCESS(f"✅ {total} registo(s) {action} cancelados"))

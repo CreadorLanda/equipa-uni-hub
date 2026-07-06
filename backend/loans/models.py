@@ -352,6 +352,10 @@ class LoanRequest(models.Model):
         related_name='loan_requests',
         verbose_name='Pacote'
     )
+    quantity = models.IntegerField(
+        null=True, blank=True,
+        verbose_name='Quantidade de equipamentos'
+    )
     purpose = models.TextField(
         verbose_name='Finalidade'
     )
@@ -487,8 +491,12 @@ class LoanRequest(models.Model):
         return self.cancelado_por.name if self.cancelado_por else None
     
     @property
+    def is_special(self):
+        """Solicitação especial = baseada em quantidade (precisa aprovação)"""
+        return bool(self.quantity)
+    
+    @property
     def confirmacao_completa(self):
-        """True quando técnico E utente confirmaram"""
         return self.confirmado_pelo_tecnico and self.confirmado_pelo_utente
     
     def aprovar(self, aprovador, motivo=''):

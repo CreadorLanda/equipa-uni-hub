@@ -175,7 +175,7 @@ class LoanRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = LoanRequest
         fields = [
-            'id', 'user', 'equipments', 'pacote', 'purpose',
+            'id', 'user', 'equipments', 'pacote', 'quantity', 'purpose',
             'expected_return_date', 'expected_return_time',
             'notes', 'status',
             'aprovado_por', 'motivo_decisao', 'data_decisao',
