@@ -7,12 +7,14 @@ class EquipmentSerializer(serializers.ModelSerializer):
     Serializer completo para o modelo Equipment
     """
     full_name = serializers.ReadOnlyField()
+    qrcode_url = serializers.ReadOnlyField()
     
     class Meta:
         model = Equipment
         fields = [
             'id', 'brand', 'model', 'type', 'status', 'serial_number',
             'acquisition_date', 'description', 'location', 'color', 'category',
+            'qrcode_hash', 'qrcode_url',
             'full_name', 'created_at', 'updated_at'
         ]
         extra_kwargs = {

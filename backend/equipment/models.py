@@ -1,3 +1,4 @@
+import hashlib, uuid
 from django.db import models
 from django.utils import timezone
 
@@ -13,6 +14,7 @@ class Equipment(models.Model):
         ('projetor', 'Projetor'),
         ('impressora', 'Impressora'),
         ('monitor', 'Monitor'),
+        ('acessorio', 'Acessório'),
         ('outros', 'Outros'),
     ]
     
@@ -72,7 +74,14 @@ class Equipment(models.Model):
         help_text='Categoria adicional do equipamento (ex: Profissional, Educacional, etc.)'
     )
     
-    # Campos adicionais úteis
+    qrcode_hash = models.CharField(
+        max_length=64,
+        unique=True,
+        blank=True,
+        null=True,
+        verbose_name='Hash do QR Code'
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -93,6 +102,16 @@ class Equipment(models.Model):
         return self.status == 'disponivel'
     
     def can_be_borrowed(self):
-        # Só é possível emprestar quando o equipamento está disponível
-        # Requisito: se estiver reservado, não pode ser emprestado
         return self.status == 'disponivel'
+    
+    @property
+    def qrcode_url(self):
+        if self.qrcode_hash:
+            return f"/api/v1/equipment/qrcode/{self.qrcode_hash}/"
+        return None
+    
+    def save(self, *args, **kwargs):
+        if not self.qrcode_hash:
+            raw = f"{self.serial_number}-{uuid.uuid4().hex[:8]}"
+            self.qrcode_hash = hashlib.sha256(raw.encode()).hexdigest()[:16]
+        super().save(*args, **kwargs)

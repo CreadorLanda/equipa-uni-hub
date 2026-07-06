@@ -1,8 +1,9 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404, redirect
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q, Count
+from django.http import HttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Equipment
@@ -51,37 +52,21 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         
         return queryset
     
+    TECH_ROLES = ['admin', 'tecnico']
+
     def perform_create(self, serializer):
-        """
-        Personaliza a criação de equipamento
-        """
-        # Apenas técnicos podem criar equipamentos
-        if self.request.user.role != 'tecnico':
-            raise permissions.PermissionDenied(
-                'Você não tem permissão para criar equipamentos.'
-            )
+        if self.request.user.role not in self.TECH_ROLES:
+            raise permissions.PermissionDenied('Não tem permissão para criar equipamentos.')
         serializer.save()
-    
+
     def perform_update(self, serializer):
-        """
-        Personaliza a atualização de equipamento
-        """
-        # Apenas técnicos podem editar equipamentos
-        if self.request.user.role != 'tecnico':
-            raise permissions.PermissionDenied(
-                'Você não tem permissão para editar equipamentos.'
-            )
+        if self.request.user.role not in self.TECH_ROLES:
+            raise permissions.PermissionDenied('Não tem permissão para editar equipamentos.')
         serializer.save()
-    
+
     def perform_destroy(self, instance):
-        """
-        Personaliza a exclusão de equipamento
-        """
-        # Apenas técnicos podem excluir equipamentos
-        if self.request.user.role != 'tecnico':
-            raise permissions.PermissionDenied(
-                'Apenas técnicos podem excluir equipamentos.'
-            )
+        if self.request.user.role not in self.TECH_ROLES:
+            raise permissions.PermissionDenied('Apenas técnicos e admin podem excluir equipamentos.')
         
         # Verifica se o equipamento está emprestado ou reservado
         if instance.status in ['emprestado', 'reservado']:
@@ -136,49 +121,64 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         serializer = EquipmentStatsSerializer(stats_data)
         return Response(serializer.data)
     
+    TECH_ROLES_LIST = ['admin', 'tecnico']
+
     @action(detail=True, methods=['post'])
     def set_maintenance(self, request, pk=None):
-        """
-        Marca equipamento como em manutenção
-        """
-        if request.user.role not in ['tecnico', 'coordenador']:
-            return Response(
-                {'error': 'Apenas técnicos e coordenadores podem marcar equipamentos para manutenção.'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+        if request.user.role not in self.TECH_ROLES_LIST:
+            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
         equipment = self.get_object()
-        
         if equipment.status == 'emprestado':
-            return Response(
-                {'error': 'Não é possível colocar em manutenção equipamento emprestado.'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({'error': 'Não é possível colocar em manutenção equipamento emprestado.'}, status=status.HTTP_400_BAD_REQUEST)
         equipment.status = 'manutencao'
         equipment.save()
-        
-        return Response(
-            {'message': f'Equipamento {equipment} marcado para manutenção.'}, 
-            status=status.HTTP_200_OK
-        )
-    
+        return Response({'message': f'{equipment} marcado para manutenção.'})
+
     @action(detail=True, methods=['post'])
     def set_available(self, request, pk=None):
-        """
-        Marca equipamento como disponível
-        """
-        if request.user.role not in ['tecnico', 'coordenador']:
-            return Response(
-                {'error': 'Apenas técnicos e coordenadores podem marcar equipamentos como disponíveis.'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
+        if request.user.role not in self.TECH_ROLES_LIST:
+            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
         equipment = self.get_object()
         equipment.status = 'disponivel'
         equipment.save()
-        
-        return Response(
-            {'message': f'Equipamento {equipment} marcado como disponível.'}, 
-            status=status.HTTP_200_OK
+        return Response({'message': f'{equipment} marcado como disponível.'})
+
+    @action(detail=True, methods=['post'])
+    def set_inactive(self, request, pk=None):
+        if request.user.role not in self.TECH_ROLES_LIST:
+            return Response({'error': 'Sem permissão.'}, status=status.HTTP_403_FORBIDDEN)
+        equipment = self.get_object()
+        if equipment.status == 'emprestado':
+            return Response({'error': 'Não pode desativar equipamento emprestado.'}, status=status.HTTP_400_BAD_REQUEST)
+        equipment.status = 'inativo'
+        equipment.save()
+        return Response({'message': f'{equipment} desativado.'})
+
+    @action(detail=False, methods=['get'])
+    def qrcode(self, request):
+        hash = request.query_params.get('hash')
+        if not hash:
+            return Response({'error': 'Parâmetro hash é obrigatório.'}, status=status.HTTP_400_BAD_REQUEST)
+        equipment = get_object_or_404(Equipment, qrcode_hash=hash)
+        base_url = request.build_absolute_uri('/')[:-1]
+        consult_url = f"{base_url}/consulta/{equipment.qrcode_hash}/"
+        return HttpResponse(
+            f'<html><body style="font-family:sans-serif;text-align:center;padding:40px">'
+            f'<h2>{equipment.full_name}</h2>'
+            f'<p>Serial: {equipment.serial_number} | Status: {equipment.get_status_display()}</p>'
+            f'<img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={consult_url}" alt="QR Code"/>'
+            f'<p><a href="{consult_url}">Ver detalhes no sistema</a></p></body></html>'
+        )
+
+    @action(detail=False, methods=['get'], url_path='qrcode/(?P<hash>[^/.]+)')
+    def qrcode_detail(self, request, hash=None):
+        equipment = get_object_or_404(Equipment, qrcode_hash=hash)
+        base_url = request.build_absolute_uri('/')[:-1]
+        consult_url = f"{base_url}/consulta/{equipment.qrcode_hash}/"
+        return HttpResponse(
+            f'<html><body style="font-family:sans-serif;text-align:center;padding:40px">'
+            f'<h2>{equipment.full_name}</h2>'
+            f'<p>Serial: {equipment.serial_number} | Status: {equipment.get_status_display()}</p>'
+            f'<img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={consult_url}" alt="QR Code"/>'
+            f'<p><a href="{consult_url}">Ver detalhes no sistema</a></p></body></html>'
         )

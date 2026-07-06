@@ -161,6 +161,9 @@ export const equipmentAPI = {
 
   setAvailable: (id: string) =>
     api.post(`/equipment/${id}/set_available/`),
+
+  setInactive: (id: string) =>
+    api.post(`/equipment/${id}/set_inactive/`),
 };
 
 export const loansAPI = {

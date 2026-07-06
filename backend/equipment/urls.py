@@ -1,4 +1,4 @@
-from django.urls import path, include
+from django.urls import path, include, re_path
 from rest_framework.routers import DefaultRouter
 from .views import EquipmentViewSet
 from .package_views import EquipmentPackageViewSet
@@ -9,4 +9,7 @@ router.register(r'packages', EquipmentPackageViewSet, basename='packages')
 
 urlpatterns = [
     path('', include(router.urls)),
+    re_path(r'^equipment/qrcode/(?P<hash>[^/.]+)/$',
+            EquipmentViewSet.as_view({'get': 'qrcode_detail'}),
+            name='equipment-qrcode-detail'),
 ] 

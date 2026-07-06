@@ -30,10 +30,12 @@ export interface Equipment {
   location?: string;
   color?: string;
   category?: string;
+  qrcode_hash?: string;
+  qrcode_url?: string;
   updatedAt?: string;
 }
 
-export type EquipmentType = 'notebook' | 'desktop' | 'tablet' | 'projetor' | 'impressora' | 'monitor' | 'outros';
+export type EquipmentType = 'notebook' | 'desktop' | 'tablet' | 'projetor' | 'impressora' | 'monitor' | 'acessorio' | 'outros';
 
 export type EquipmentStatus = 'disponivel' | 'emprestado' | 'reservado' | 'manutencao' | 'inativo';
 
