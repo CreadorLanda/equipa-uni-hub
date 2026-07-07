@@ -12,7 +12,8 @@ import {
   Printer,
   LogOut,
   Menu,
-  Package
+  Package,
+  UserPlus
 } from "lucide-react";
 
 import {
