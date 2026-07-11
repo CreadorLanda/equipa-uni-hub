@@ -255,8 +255,7 @@ export const Equipamentos = () => {
       if (newStatus === 'disponivel') {
         await equipmentAPI.setAvailable(equipment.id);
       } else {
-        // Para inativar, usar PATCH para enviar somente o campo necessário
-        await equipmentAPI.partialUpdate(equipment.id, { status: 'inativo' });
+        await equipmentAPI.setInactive(equipment.id);
       }
 
       setEquipments(prev => prev.map(eq =>
@@ -751,6 +750,24 @@ export const Equipamentos = () => {
                 </div>
               )}
 
+              {selectedEquipment.qrcode_hash && (
+                <div className="pt-4 border-t text-center">
+                  <Label className="text-muted-foreground">QR Code do Equipamento</Label>
+                  <div className="mt-2">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${window.location.origin}/consulta/${selectedEquipment.qrcode_hash}`}
+                      alt="QR Code"
+                      className="inline-block"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      <a href={`${window.location.origin}/consulta/${selectedEquipment.qrcode_hash}`}
+                        target="_blank" rel="noreferrer" className="underline">
+                        {window.location.origin}/consulta/{selectedEquipment.qrcode_hash}
+                      </a>
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="pt-4 border-t">
                 <Label className="text-muted-foreground text-xs">Metadados</Label>
                 <div className="grid grid-cols-2 gap-2 mt-2 text-xs text-muted-foreground">

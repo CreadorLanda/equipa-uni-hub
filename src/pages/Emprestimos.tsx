@@ -69,7 +69,8 @@ export const Emprestimos = () => {
     expectedReturnDate: '',
     expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
     purpose: '',
-    notes: ''
+    notes: '',
+    devolucao_mesmo_dia: false,
   });
 
   // Carrega dados da API
@@ -233,10 +234,12 @@ export const Emprestimos = () => {
       const newLoan = await loansAPI.create({
         user: loanUserId,
         equipment: selectedEquipment.id,
-        expected_return_date: formData.expectedReturnDate,
+        expected_return_date: formData.devolucao_mesmo_dia ? new Date().toISOString().split('T')[0] : formData.expectedReturnDate,
         expected_return_time: formData.expectedReturnTime,
         purpose: formData.purpose,
-        notes: formData.notes
+        notes: formData.notes,
+        devolucao_mesmo_dia: formData.devolucao_mesmo_dia,
+        data_prevista_devolucao: formData.data_prevista_devolucao || null,
       });
 
       setLoans(prev => [...prev, newLoan]);
@@ -308,7 +311,8 @@ export const Emprestimos = () => {
       expectedReturnDate: '',
       expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
       purpose: '',
-      notes: ''
+      notes: '',
+      devolucao_mesmo_dia: false,
     });
     setIsDialogOpen(false);
   };
@@ -392,28 +396,27 @@ export const Emprestimos = () => {
 
     setSubmitting(true);
     try {
-      const updatedLoan = await loansAPI.confirmarLevantamento(selectedLoan.id, {
+      const updatedLoan = await loansAPI.confirmarTecnico(selectedLoan.id, {
         notes: confirmPickupNotes
       });
-      
-      setLoans(prev => prev.map(l => 
-        l.id === selectedLoan.id 
-          ? { ...l, status: 'ativo' as LoanStatus }
+
+      const msg = updatedLoan?.loan?.confirmado_levantamento
+        ? "Ambas confirmações recebidas. Empréstimo ativado!"
+        : "Confirmação técnica registada. Aguardando confirmação do utente.";
+
+      setLoans(prev => prev.map(l =>
+        l.id === selectedLoan.id
+          ? { ...l, confirmadoTecnico: true, status: updatedLoan?.loan?.status || l.status }
           : l
       ));
-      
-      toast({
-        title: "Levantamento confirmado!",
-        description: `O empréstimo foi ativado com sucesso. O equipamento agora está emprestado para ${selectedLoan.userName || selectedLoan.user_name}.`,
-      });
-      
+
+      toast({ title: "Confirmação técnica!", description: msg });
+
       setShowConfirmPickupDialog(false);
       setSelectedLoan(null);
       setConfirmPickupNotes('');
-      
-      // Recarrega lista para atualizar status
       await loadData();
-      
+
     } catch (error) {
       console.error('Erro ao confirmar levantamento:', error);
       toast({
@@ -441,6 +444,15 @@ export const Emprestimos = () => {
           </p>
         </div>
         
+        {user && user.role && ['docente', 'secretario', 'coordenador'].includes(user.role) && pendingLoans
+          .filter(l => (l.userId || (l as any).user) === user.id && !l.confirmadoUtente)
+          .map(loan => (
+            <Button key={'cu-' + loan.id} variant="outline" size="sm"
+              onClick={() => confirmUtente(loan)} disabled={submitting}
+              className="mr-2">
+              Confirmar como Utente #{loan.id}
+            </Button>
+          ))}
         {canCreateLoan() && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -503,27 +515,40 @@ export const Emprestimos = () => {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="expectedReturnDate">Data Prevista de Devolução</Label>
-                <Input
-                  id="expectedReturnDate"
-                  type="date"
-                  value={formData.expectedReturnDate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnDate: e.target.value }))}
-                  min={new Date().toISOString().split('T')[0]}
-                  required
-                />
+              <div className="flex items-center gap-2 mb-2">
+                <input type="checkbox" id="devolucaoMesmoDia"
+                  checked={formData.devolucao_mesmo_dia || false}
+                  onChange={(e) => setFormData(prev => ({ ...prev, devolucao_mesmo_dia: e.target.checked }))}
+                  className="h-4 w-4" />
+                <Label htmlFor="devolucaoMesmoDia">Devolução no mesmo dia?</Label>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="expectedReturnTime">Hora Prevista de Devolução</Label>
-                <Input
-                  id="expectedReturnTime"
-                  type="time"
-                  value={formData.expectedReturnTime}
-                  onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnTime: e.target.value }))}
-                />
-              </div>
+              {formData.devolucao_mesmo_dia ? (
+                <div className="space-y-2">
+                  <Label htmlFor="expectedReturnTime">Hora Prevista de Devolução</Label>
+                  <Input id="expectedReturnTime" type="time"
+                    value={formData.expectedReturnTime}
+                    onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnTime: e.target.value }))}
+                    required />
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="expectedReturnDate">Data Prevista de Devolução</Label>
+                    <Input id="expectedReturnDate" type="date"
+                      value={formData.expectedReturnDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnDate: e.target.value }))}
+                      min={new Date().toISOString().split('T')[0]}
+                      required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expectedReturnTime">Hora Prevista de Devolução</Label>
+                    <Input id="expectedReturnTime" type="time"
+                      value={formData.expectedReturnTime}
+                      onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnTime: e.target.value }))} />
+                  </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="purpose">Finalidade do Empréstimo</Label>
