@@ -101,7 +101,7 @@ class Command(BaseCommand):
         ]
 
         for user_data in users_data:
-                password = user_data.pop('password')
+            password = user_data.pop('password')
             user, created = User.objects.get_or_create(
                 email=user_data['email'],
                 defaults=user_data
@@ -109,13 +109,11 @@ class Command(BaseCommand):
             if created:
                 user.set_password(password)
                 user.save()
+                self.stdout.write(f'Usuário {user.name} criado')
             else:
-                # Atualiza role do admin no seed
                 if user.email == 'admin@unihub.com' and user.role != 'admin':
                     user.role = 'admin'
                     user.save()
-                self.stdout.write(f'Usuário {user.name} criado')
-            else:
                 self.stdout.write(f'Usuário {user.name} já existe')
 
     def create_equipment(self):
