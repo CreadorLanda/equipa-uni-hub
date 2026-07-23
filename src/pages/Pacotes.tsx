@@ -41,7 +41,8 @@ export default function Pacotes() {
         try {
             setLoading(true);
             const data = await packagesAPI.list();
-            setPackages(data);
+            const list = Array.isArray(data) ? data : (data as any).results || [];
+            setPackages(list);
         } catch (error) {
             toast.error('Erro ao carregar pacotes');
             console.error(error);
@@ -53,7 +54,8 @@ export default function Pacotes() {
     const loadEquipments = async () => {
         try {
             const data = await equipmentAPI.list();
-            setEquipments(data);
+            const list = Array.isArray(data) ? data : (data as any).results || [];
+            setEquipments(list);
         } catch (error) {
             console.error('Erro ao carregar equipamentos:', error);
         }
