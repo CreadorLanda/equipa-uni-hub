@@ -73,7 +73,7 @@ export const Relatorios = () => {
 
   // Verificações de permissão
   const canGenerateReports = () => {
-    return user?.role && ['tecnico', 'secretario', 'coordenador'].includes(user.role);
+    return user?.role && ['admin', 'tecnico', 'secretario', 'coordenador'].includes(user.role);
   };
 
   const formatDate = (dateString: string | undefined | null) => {

@@ -165,7 +165,7 @@ export default function Pacotes() {
     };
 
     const canManagePackages = () => {
-        return user?.role === 'tecnico' || user?.role === 'secretario' || user?.role === 'coordenador';
+        return user?.role && ['admin', 'tecnico', 'secretario', 'coordenador'].includes(user.role);
     };
 
     const getEquipmentName = (item: any) => {
