@@ -68,20 +68,26 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
             return queryset.filter(user=user)
     
     def perform_create(self, serializer):
-        """
-        Personaliza a criação de solicitação
-        """
-        # Docentes só podem criar solicitações para si mesmos
         if self.request.user.role == 'docente':
             loan_request = serializer.save(user=self.request.user)
         else:
             loan_request = serializer.save()
-        
-        # Envia notificação para a reitoria (coordenadores) sobre nova solicitação
-        try:
-            self._send_new_request_notification(loan_request)
-        except Exception as e:
-            print(f"Erro ao enviar notificação de nova solicitação: {e}")
+
+        is_normal = not (loan_request.quantity and loan_request.quantity > 0)
+
+        if is_normal:
+            # Solicitação normal (equipamento único) — auto-aprovada
+            loan_request.status = 'autorizado'
+            loan_request.aprovado_por = loan_request.user
+            loan_request.motivo_decisao = 'Auto-aprovada (solicitação normal)'
+            loan_request.data_decisao = timezone.now()
+            loan_request.save()
+        else:
+            # Solicitação especial (por quantidade) — notifica reitoria
+            try:
+                self._send_new_request_notification(loan_request)
+            except Exception as e:
+                print(f"Erro ao enviar notificação: {e}")
     
     def perform_update(self, serializer):
         """
@@ -292,33 +298,29 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
     def confirmar_levantamento_utente(self, request, pk=None):
         """
         Utente confirma o levantamento.
-        Se técnico já confirmou, cria os empréstimos automaticamente.
+        - Solicitações normais (auto-aprovadas): cria empréstimos diretamente.
+        - Especiais (quantidade): aguarda também o técnico.
         """
         loan_request = self.get_object()
 
         if loan_request.user != request.user:
-            return Response(
-                {'error': 'Apenas o utente pode confirmar o seu próprio levantamento.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
+            return Response({'error': 'Apenas o utente pode confirmar o seu próprio levantamento.'}, status=status.HTTP_403_FORBIDDEN)
 
         if loan_request.status != 'autorizado':
-            return Response(
-                {'error': 'Esta solicitação precisa estar autorizada.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': 'Esta solicitação precisa estar autorizada.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if loan_request.confirmado_pelo_utente:
-            return Response(
-                {'error': 'Já confirmou o levantamento.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': 'Já confirmou o levantamento.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_normal = not (loan_request.quantity and loan_request.quantity > 0)
 
         serializer = LoanRequestConfirmPickupSerializer(data=request.data)
         if serializer.is_valid():
-            completa = loan_request.confirmar_levantamento_utente()
+            loan_request.confirmar_levantamento_utente()
 
-            if completa:
+            if is_normal:
+                return self._gerar_emprestimos_da_solicitacao(loan_request, request)
+            elif loan_request.confirmado_pelo_tecnico:
                 return self._gerar_emprestimos_da_solicitacao(loan_request, request)
             else:
                 return Response({

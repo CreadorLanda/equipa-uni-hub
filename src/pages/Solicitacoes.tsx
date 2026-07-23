@@ -23,7 +23,7 @@ import {
 import { LoanRequest, LoanRequestStatus, Equipment } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { loanRequestsAPI, equipmentAPI } from '@/lib/api';
+import { loanRequestsAPI, equipmentAPI, packagesAPI } from '@/lib/api';
 
 const statusOptions: { value: LoanRequestStatus; label: string; color: string }[] = [
   { value: 'pendente', label: 'Pendente', color: 'bg-warning text-warning-foreground' },
@@ -51,12 +51,15 @@ export const Solicitacoes = () => {
 
   const [formData, setFormData] = useState({
     equipments: [] as string[],
-    quantity: 6,
+    pacote: '',
+    quantity: 2,
     purpose: '',
     expectedReturnDate: '',
     expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
-    notes: ''
+    notes: '',
+    devolucao_mesmo_dia: false,
   });
+  const [availablePackages, setAvailablePackages] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
@@ -69,9 +72,11 @@ export const Solicitacoes = () => {
       const requestsData = await loanRequestsAPI.list();
       setRequests(requestsData.results || requestsData);
       
-      // Carrega equipamentos disponíveis
       const equipmentData = await equipmentAPI.available();
       setAvailableEquipments(equipmentData.results || equipmentData);
+
+      const pkgs = await packagesAPI.available();
+      setAvailablePackages(Array.isArray(pkgs) ? pkgs : (pkgs as any).results || []);
       
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -155,6 +160,7 @@ export const Solicitacoes = () => {
       const payload: any = {
         user: user!.id,
         equipments: formData.quantity > 0 ? [] : formData.equipments,
+        pacote: formData.pacote || null,
         quantity: formData.quantity > 0 ? formData.quantity : 0,
         purpose: formData.purpose,
         expected_return_date: formData.devolucao_mesmo_dia ? new Date().toISOString().split('T')[0] : formData.expectedReturnDate,
@@ -166,9 +172,12 @@ export const Solicitacoes = () => {
 
       setRequests(prev => [newRequest, ...prev]);
       
+      const isNormal = !formData.quantity && (formData.equipments.length > 0 || formData.pacote);
       toast({
         title: "Solicitação enviada!",
-        description: "Sua solicitação foi enviada para aprovação da reitoria.",
+        description: isNormal
+          ? "Solicitação auto-aprovada. Pode confirmar o levantamento."
+          : "Solicitação enviada para aprovação.",
       });
       
       resetForm();
@@ -362,7 +371,7 @@ export const Solicitacoes = () => {
                   </Button>
                   <Button type="button"
                     variant={formData.quantity > 0 ? "default" : "outline"} size="sm"
-                    onClick={() => setFormData(prev => ({ ...prev, quantity: 2, equipments: [] }))}>
+                    onClick={() => setFormData(prev => ({ ...prev, quantity: 2, equipments: [], pacote: '' }))}>
                     Por Quantidade
                   </Button>
                 </div>
@@ -374,6 +383,19 @@ export const Solicitacoes = () => {
                       onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) }))}
                       required />
                     <p className="text-sm text-muted-foreground">Mínimo: superior a 1 equipamento</p>
+                    {availablePackages.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Ou selecione um Pacote</Label>
+                        <Select value={formData.pacote} onValueChange={(v) => setFormData(prev => ({ ...prev, pacote: v }))}>
+                          <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                          <SelectContent>
+                            {availablePackages.map((p: any) => (
+                              <SelectItem key={p.id} value={String(p.id)}>{p.name} ({p.total_items} itens)</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -404,6 +426,19 @@ export const Solicitacoes = () => {
                             </Badge>
                           ) : null;
                         })}
+                      </div>
+                    )}
+                    {availablePackages.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Ou selecione um Pacote</Label>
+                        <Select value={formData.pacote} onValueChange={(v) => setFormData(prev => ({ ...prev, pacote: v, equipments: [] }))}>
+                          <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                          <SelectContent>
+                            {availablePackages.map((p: any) => (
+                              <SelectItem key={p.id} value={String(p.id)}>{p.name} ({p.total_items} itens)</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     )}
                   </div>
@@ -685,7 +720,19 @@ export const Solicitacoes = () => {
                             {canConfirmPickup() && !request.confirmadoPeloTecnico && (
                               <Button variant="outline" size="sm"
                                 onClick={() => { setSelectedRequest(request); setShowConfirmPickupDialog(true); }}>
-                                <CheckSquare className="w-4 h-4 mr-1" /> Confirmar Levantamento
+                                <CheckSquare className="w-4 h-4 mr-1" /> Confirmar (Técnico)
+                              </Button>
+                            )}
+                            {user && !request.confirmadoPeloUtente && String(request.user || request.userId) === String(user.id) && (
+                              <Button variant="outline" size="sm"
+                                onClick={async () => {
+                                  try {
+                                    await loanRequestsAPI.confirmarLevantamentoUtente(request.id);
+                                    toast({ title: "Levantamento confirmado!" });
+                                    loadData();
+                                  } catch { toast({ title: "Erro", variant: "destructive" }); }
+                                }}>
+                                <CheckSquare className="w-4 h-4 mr-1" /> Confirmar (Utente)
                               </Button>
                             )}
                             <Button variant="outline" size="sm"
