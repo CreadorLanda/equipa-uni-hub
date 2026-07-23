@@ -159,9 +159,9 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
         loan_request = self.get_object()
         
         # Verifica permissões
-        if request.user.role not in ['admin', 'coordenador']:
+        if request.user.role not in ['admin', 'tecnico', 'coordenador']:
             return Response(
-                {'error': 'Apenas admin ou coordenadores (reitoria) podem aprovar solicitações.'}, 
+                {'error': 'Apenas admin, técnicos ou coordenadores podem aprovar solicitações.'}, 
                 status=status.HTTP_403_FORBIDDEN
             )
         
@@ -204,9 +204,9 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
         loan_request = self.get_object()
         
         # Verifica permissões
-        if request.user.role not in ['admin', 'coordenador']:
+        if request.user.role not in ['admin', 'tecnico', 'coordenador']:
             return Response(
-                {'error': 'Apenas admin ou coordenadores (reitoria) podem rejeitar solicitações.'}, 
+                {'error': 'Apenas admin, técnicos ou coordenadores podem rejeitar solicitações.'}, 
                 status=status.HTTP_403_FORBIDDEN
             )
         

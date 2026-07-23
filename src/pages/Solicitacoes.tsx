@@ -90,7 +90,7 @@ export const Solicitacoes = () => {
   };
 
   const canApprove = () => {
-    return user?.role && ['admin', 'coordenador'].includes(user.role);
+    return user?.role && ['admin', 'tecnico', 'coordenador'].includes(user.role);
   };
 
   const canConfirmPickup = () => {
