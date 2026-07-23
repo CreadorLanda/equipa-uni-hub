@@ -363,7 +363,7 @@ export const Solicitacoes = () => {
                   <Button type="button"
                     variant={!formData.quantity ? "default" : "outline"} size="sm"
                     onClick={() => setFormData(prev => ({ ...prev, quantity: 0, equipments: [] }))}>
-                    Equipamentos/Pacote
+                    Equipamentos
                   </Button>
                 </div>
 
