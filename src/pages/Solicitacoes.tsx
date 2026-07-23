@@ -356,14 +356,14 @@ export const Solicitacoes = () => {
               <form onSubmit={handleNewRequest} className="space-y-4">
                 <div className="flex gap-2">
                   <Button type="button"
-                    variant={formData.quantity > 0 ? "default" : "outline"} size="sm"
-                    onClick={() => setFormData(prev => ({ ...prev, quantity: 2, equipments: [] }))}>
-                    Por Quantidade
-                  </Button>
-                  <Button type="button"
                     variant={!formData.quantity ? "default" : "outline"} size="sm"
                     onClick={() => setFormData(prev => ({ ...prev, quantity: 0, equipments: [] }))}>
                     Equipamentos
+                  </Button>
+                  <Button type="button"
+                    variant={formData.quantity > 0 ? "default" : "outline"} size="sm"
+                    onClick={() => setFormData(prev => ({ ...prev, quantity: 2, equipments: [] }))}>
+                    Por Quantidade
                   </Button>
                 </div>
 
