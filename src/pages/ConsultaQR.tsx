@@ -133,6 +133,16 @@ export function ConsultaQR() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Equipamento:</span>
+                    <span className="font-medium ml-1">
+                      {loanReq.pacote_detail
+                        ? `Pacote: ${loanReq.pacote_detail.name}`
+                        : loanReq.equipments_detail && loanReq.equipments_detail.length > 0
+                          ? loanReq.equipments_detail.map((e: any) => e.full_name || `${e.brand||''} ${e.model||''}`).join(', ')
+                          : loanReq.quantity > 0 ? `${loanReq.quantity} equipamentos` : '-'}
+                    </span>
+                  </div>
                   <div><span className="text-muted-foreground">Utente:</span> <span className="font-medium">{loanReq.user_name || '-'}</span></div>
                   <div><span className="text-muted-foreground">Finalidade:</span> <span>{loanReq.purpose || '-'}</span></div>
                   <div><span className="text-muted-foreground">Data Devolução:</span> <span>{loanReq.expected_return_date ? new Date(loanReq.expected_return_date).toLocaleDateString('pt-BR') : '-'}</span></div>
