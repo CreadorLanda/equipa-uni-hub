@@ -3,6 +3,7 @@ import { AppSidebar } from "./AppSidebar";
 import { User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NotificationDropdown } from "./NotificationDropdown";
+import { QRScannerButton } from "./QRScannerButton";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -31,6 +32,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
             
             <div className="flex items-center gap-4">
+              <QRScannerButton />
               <NotificationDropdown />
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
