@@ -163,9 +163,10 @@ export default function Pacotes() {
         return user?.role === 'tecnico' || user?.role === 'secretario' || user?.role === 'coordenador';
     };
 
-    const getEquipmentName = (equipment_id: string) => {
-        const equipment = equipments.find(eq => eq.id === equipment_id);
-        return equipment ? `${equipment.brand} ${equipment.model}` : 'Equipamento';
+    const getEquipmentName = (item: any) => {
+        const eqId = String(item.equipment?.id || item.equipment_id || '');
+        const equipment = equipments.find(eq => String(eq.id) === eqId);
+        return equipment ? `${equipment.brand} ${equipment.model}` : (item.equipment?.full_name || eqId || 'Equipamento');
     };
 
     if (loading) {
@@ -284,7 +285,7 @@ export default function Pacotes() {
                                             {formData.items.map((item, index) => (
                                                 <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
                                                     <span className="text-sm">
-                                                        {getEquipmentName(item.equipment_id)} (x{item.quantity})
+                                                        {getEquipmentName(item)} (x{item.quantity})
                                                         {item.is_optional && <Badge variant="outline" className="ml-2">Opcional</Badge>}
                                                     </span>
                                                     <Button
