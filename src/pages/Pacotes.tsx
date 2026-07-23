@@ -136,14 +136,19 @@ export default function Pacotes() {
         }
     };
 
-    const handleDuplicate = async (id: string) => {
-        try {
-            await packagesAPI.duplicate(id);
-            toast.success('Pacote duplicado com sucesso!');
-            loadPackages();
-        } catch (error: any) {
-            toast.error(error.message || 'Erro ao duplicar pacote');
-        }
+    const handleEditPackage = (pkg: EquipmentPackage) => {
+        setFormData({
+            name: pkg.name,
+            description: pkg.description || '',
+            is_template: pkg.is_template,
+            items: (pkg.items || []).map((item: any) => ({
+                equipment_id: String(item.equipment?.id || item.equipment_id || ''),
+                quantity: item.quantity || 1,
+                is_optional: item.is_optional || false,
+            })),
+        });
+        setEditingPackage(pkg);
+        setIsDialogOpen(true);
     };
 
     const resetForm = () => {
@@ -367,11 +372,11 @@ export default function Pacotes() {
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => handleDuplicate(pkg.id)}
+                                            onClick={() => handleEditPackage(pkg)}
                                             className="flex-1"
                                         >
-                                            <Copy className="h-4 w-4 mr-1" />
-                                            Duplicar
+                                            <Edit className="h-4 w-4 mr-1" />
+                                            Editar
                                         </Button>
                                         <Button
                                             variant="destructive"
