@@ -112,11 +112,28 @@ class LoanRequestPDFGenerator:
         story.append(Spacer(1, 0.5*cm))
         
         # Request number and status
+        req = self.loan_request
         request_info = [
-            ['Número da Solicitação:', f'#{self.loan_request.id}'],
-            ['Status:', self.loan_request.get_status_display().upper()],
-            ['Data da Solicitação:', self.loan_request.created_at.strftime('%d/%m/%Y às %H:%M')],
+            ['Número da Solicitação:', f'#{req.id}'],
+            ['Status:', req.get_status_display().upper()],
+            ['Data da Solicitação:', req.created_at.strftime('%d/%m/%Y às %H:%M')],
         ]
+        if req.tecnico_responsavel:
+            request_info.append(['Técnico Responsável:', req.tecnico_name])
+        if req.is_special:
+            request_info.append(['Quantidade:', str(req.quantity)])
+        else:
+            label = ''
+            if req.pacote:
+                label = f'Pacote: {req.pacote.name}'
+            elif req.equipments.exists():
+                label = ', '.join([str(eq) for eq in req.equipments.all()[:3]])
+                if req.equipments.count() > 3:
+                    label += f' (+{req.equipments.count()-3})'
+            if label:
+                request_info.append(['Equipamento:', label])
+        if req.devolucao_mesmo_dia:
+            request_info.append(['Devolução:', 'Mesmo dia'])
         
         request_table = Table(request_info, colWidths=[7*cm, 10*cm])
         request_table.setStyle(TableStyle([
@@ -146,7 +163,7 @@ class LoanRequestPDFGenerator:
         if self.loan_request.user.department:
             user_info.append(['Departamento:', self.loan_request.user.department])
         
-        if self.loan_request.user.contact:
+        if hasattr(self.loan_request.user, 'contact') and self.loan_request.user.contact:
             user_info.append(['Contacto:', self.loan_request.user.contact])
         
         user_table = Table(user_info, colWidths=[5*cm, 12*cm])
@@ -180,6 +197,13 @@ class LoanRequestPDFGenerator:
         
         if self.loan_request.notes:
             loan_details.append(['Observações:', self.loan_request.notes])
+        if self.loan_request.confirmado_pelo_tecnico or self.loan_request.confirmado_pelo_utente:
+            confs = []
+            if self.loan_request.confirmado_pelo_tecnico:
+                confs.append(f"Técnico ({self.loan_request.tecnico_name or 'N/A'})")
+            if self.loan_request.confirmado_pelo_utente:
+                confs.append('Utente')
+            loan_details.append(['Confirmações:', ' + '.join(confs)])
         
         loan_table = Table(loan_details, colWidths=[6*cm, 11*cm])
         loan_table.setStyle(TableStyle([
@@ -229,43 +253,40 @@ class LoanRequestPDFGenerator:
             story.append(equipment_table)
             story.append(Spacer(1, 0.7*cm))
         
-        # Reason for special approval
-        story.append(Paragraph("4. JUSTIFICATIVA PARA APROVAÇÃO ESPECIAL", heading_style))
+        # Details
+        story.append(Paragraph("4. DETALHES ADICIONAIS", heading_style))
         
-        limits = settings.LOAN_REQUEST_LIMITS
-        max_equipment = limits.get('max_equipment_count', 50)
-        max_days = limits.get('max_days', 1)
+        if req.is_special:
+            limits = settings.LOAN_REQUEST_LIMITS
+            max_equipment = limits.get('max_equipment_count', 50)
+            max_days = limits.get('max_days', 1)
+            jt = f"""
+            Esta solicitação requer aprovação especial pois excede os limites ({max_equipment} equipamentos ou {max_days} dia(s)).
+            A solicitação envolve <b>{req.quantity} equipamentos</b>.
+            """
+        else:
+            jt = "Solicitação de equipamento específico."
         
-        justification_text = f"""
-        Esta solicitação requer aprovação especial da Reitoria pois excede os limites configurados 
-        no sistema ({max_equipment} equipamentos ou {max_days} dia(s)). A solicitação atual envolve 
-        <b>{self.loan_request.quantity} equipamentos</b>, portanto necessita de autorização formal 
-        antes de ser processada pelo setor técnico.
-        """
-        
-        story.append(Paragraph(justification_text, styles['BodyText']))
+        story.append(Paragraph(jt, styles['BodyText']))
         story.append(Spacer(1, 1*cm))
         
         # Approval section
-        story.append(Paragraph("5. APROVAÇÃO DA REITORIA", heading_style))
+        story.append(Paragraph("5. APROVAÇÃO / DECISÃO", heading_style))
         
-        if self.loan_request.status == 'pendente':
+        if req.status == 'pendente':
             approval_text = """
             <para alignment="center">
             <b>AGUARDANDO DECISÃO</b><br/>
-            Esta solicitação ainda não foi analisada pela Reitoria.
+            Esta solicitação ainda não foi analisada.
             </para>
             """
             story.append(Paragraph(approval_text, styles['BodyText']))
             story.append(Spacer(1, 0.5*cm))
-            
-            # Signature fields
             signature_data = [
                 ['', ''],
                 ['_____________________________________', '_____________________________________'],
-                ['Assinatura do Coordenador', 'Data da Decisão'],
+                ['Assinatura do Responsável', 'Data da Decisão'],
             ]
-            
             signature_table = Table(signature_data, colWidths=[8.5*cm, 8.5*cm])
             signature_table.setStyle(TableStyle([
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -275,20 +296,41 @@ class LoanRequestPDFGenerator:
                 ('TOPPADDING', (0, 0), (-1, 0), 20),
             ]))
             story.append(signature_table)
-            
-        else:
-            approval_info = [
-                ['Decisão:', self.loan_request.get_status_display().upper()],
-                ['Aprovado/Rejeitado por:', self.loan_request.aprovador_name or 'N/A'],
-                ['Data da Decisão:', self.loan_request.data_decisao.strftime('%d/%m/%Y às %H:%M') if self.loan_request.data_decisao else 'N/A'],
+        elif req.status == 'cancelado':
+            cancel_info = [
+                ['Decisão:', 'CANCELADO'],
+                ['Cancelado por:', req.cancelador_name or 'Automático'],
+                ['Data:', req.data_cancelamento.strftime('%d/%m/%Y às %H:%M') if req.data_cancelamento else 'N/A'],
             ]
-            
-            if self.loan_request.motivo_decisao:
-                approval_info.append(['Motivo:', self.loan_request.motivo_decisao])
-            
+            if req.motivo_cancelamento:
+                cancel_info.append(['Motivo:', req.motivo_cancelamento])
+            cancel_table = Table(cancel_info, colWidths=[5*cm, 12*cm])
+            cancel_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#fee2e2')),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+                ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('PADDING', (0, 0), (-1, -1), 6),
+            ]))
+            story.append(cancel_table)
+        else:
+            is_approved = req.status == 'autorizado'
+            approval_info = [
+                ['Decisão:', req.get_status_display().upper()],
+                ['Responsável:', req.aprovador_name or 'Auto-aprovado'],
+                ['Data da Decisão:', req.data_decisao.strftime('%d/%m/%Y às %H:%M') if req.data_decisao else 'N/A'],
+            ]
+            if req.motivo_decisao:
+                approval_info.append(['Motivo:', req.motivo_decisao])
             approval_table = Table(approval_info, colWidths=[5*cm, 12*cm])
+            bg = colors.HexColor('#dcfce7') if is_approved else colors.HexColor('#fee2e2')
             approval_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f3f4f6')),
+                ('BACKGROUND', (0, 0), (0, -1), bg),
                 ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
                 ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
                 ('ALIGN', (1, 0), (1, -1), 'LEFT'),
