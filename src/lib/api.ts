@@ -156,6 +156,9 @@ export const equipmentAPI = {
   stats: () =>
     api.get('/equipment/stats/'),
 
+  byQRCode: (hash: string) =>
+    api.get(`/equipment/by_qrcode/?hash=${hash}`),
+
   setMaintenance: (id: string) =>
     api.post(`/equipment/${id}/set_maintenance/`),
 

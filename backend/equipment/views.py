@@ -1,4 +1,4 @@
-from django.shortcuts import render, get_object_or_404, redirect
+from django.shortcuts import render, get_object_or_404
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -22,7 +22,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['type', 'status', 'brand']
-    search_fields = ['brand', 'model', 'serial_number', 'description', 'location']
+    search_fields = ['brand', 'model', 'serial_number', 'description', 'location', 'qrcode_hash']
     ordering_fields = ['brand', 'model', 'acquisition_date', 'created_at']
     ordering = ['brand', 'model']
     
@@ -122,6 +122,18 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     TECH_ROLES_LIST = ['admin', 'tecnico']
+
+    @action(detail=False, methods=['get'])
+    def by_qrcode(self, request):
+        hash = request.query_params.get('hash')
+        if not hash:
+            return Response({'error': 'hash obrigatório'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            eq = Equipment.objects.get(qrcode_hash=hash)
+            serializer = EquipmentSerializer(eq)
+            return Response(serializer.data)
+        except Equipment.DoesNotExist:
+            return Response({'error': 'Equipamento não encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
     @action(detail=True, methods=['post'])
     def set_maintenance(self, request, pk=None):

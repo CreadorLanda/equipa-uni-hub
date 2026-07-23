@@ -29,18 +29,18 @@ export function ConsultaQR() {
     if (!hash) return;
     setLoading(true);
     try {
-      const list: Equipment[] = await equipmentAPI.list({ search: hash });
-      const found = (Array.isArray(list) ? list : (list as any).results || []).find(
-        (e: Equipment) => e.qrcode_hash === hash
-      );
-      if (found) {
-        setEquip(found);
-        setError("");
-      } else {
-        setError("Equipamento não encontrado.");
-      }
+      const eq = await equipmentAPI.byQRCode(hash);
+      setEquip(eq);
+      setError("");
     } catch {
-      setError("Erro ao carregar equipamento.");
+      try {
+        const list: Equipment[] = await equipmentAPI.list({ search: hash });
+        const found = (Array.isArray(list) ? list : (list as any).results || []).find(
+          (e: Equipment) => e.qrcode_hash === hash
+        );
+        if (found) { setEquip(found); setError(""); return; }
+      } catch {}
+      setError("Equipamento não encontrado.");
     } finally {
       setLoading(false);
     }
