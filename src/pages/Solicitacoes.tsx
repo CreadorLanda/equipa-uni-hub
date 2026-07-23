@@ -140,10 +140,10 @@ export const Solicitacoes = () => {
       return;
     }
 
-    if (formData.quantity <= 5) {
+    if (formData.quantity > 0 && formData.quantity <= 5) {
       toast({
         title: "Quantidade inválida",
-        description: "Solicitações são para quantidades superiores a 5 equipamentos. Para quantidades menores, faça o empréstimo direto.",
+        description: "Para solicitações por quantidade, o mínimo é 6 equipamentos.",
         variant: "destructive"
       });
       return;
@@ -152,15 +152,17 @@ export const Solicitacoes = () => {
     setSubmitting(true);
     
     try {
-      const newRequest = await loanRequestsAPI.create({
+      const payload: any = {
         user: user!.id,
-        equipments: formData.equipments,
-        quantity: formData.quantity,
+        equipments: formData.quantity > 0 ? [] : formData.equipments,
+        quantity: formData.quantity > 0 ? formData.quantity : 0,
         purpose: formData.purpose,
-        expected_return_date: formData.expectedReturnDate,
+        expected_return_date: formData.devolucao_mesmo_dia ? new Date().toISOString().split('T')[0] : formData.expectedReturnDate,
         expected_return_time: formData.expectedReturnTime,
-        notes: formData.notes
-      });
+        notes: formData.notes,
+        devolucao_mesmo_dia: formData.devolucao_mesmo_dia || false,
+      };
+      const newRequest = await loanRequestsAPI.create(payload);
 
       setRequests(prev => [newRequest, ...prev]);
       
@@ -352,98 +354,100 @@ export const Solicitacoes = () => {
               </DialogHeader>
               
               <form onSubmit={handleNewRequest} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantidade de Equipamentos</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    min="6"
-                    value={formData.quantity}
-                    onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) }))}
-                    required
-                  />
-                  <p className="text-sm text-muted-foreground">Mínimo: 6 equipamentos</p>
+                <div className="flex gap-2">
+                  <Button type="button"
+                    variant={formData.quantity > 0 ? "default" : "outline"} size="sm"
+                    onClick={() => setFormData(prev => ({ ...prev, quantity: 6, equipments: [] }))}>
+                    Por Quantidade
+                  </Button>
+                  <Button type="button"
+                    variant={!formData.quantity ? "default" : "outline"} size="sm"
+                    onClick={() => setFormData(prev => ({ ...prev, quantity: 0, equipments: [] }))}>
+                    Equipamentos/Pacote
+                  </Button>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="equipments">Equipamentos (opcional - selecione equipamentos específicos)</Label>
-                  <Select 
-                    value={formData.equipments[0] || ''} 
-                    onValueChange={(value) => {
+                {formData.quantity > 0 ? (
+                  <div className="space-y-2">
+                    <Label>Quantidade de Equipamentos</Label>
+                    <Input type="number" min="6" value={formData.quantity}
+                      onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) }))}
+                      required />
+                    <p className="text-sm text-muted-foreground">Mínimo: 6 equipamentos</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Equipamentos</Label>
+                    <Select value={formData.equipments[0] || ''} onValueChange={(value) => {
                       if (!formData.equipments.includes(value)) {
                         setFormData(prev => ({ ...prev, equipments: [...prev.equipments, value] }));
                       }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Adicionar equipamentos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableEquipments.map(equipment => (
-                        <SelectItem key={equipment.id} value={String(equipment.id)}>
-                          {equipment.brand} {equipment.model}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {formData.equipments.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {formData.equipments.map(eqId => {
-                        const eq = availableEquipments.find(e => String(e.id) === eqId);
-                        return eq ? (
-                          <Badge key={eqId} variant="secondary">
-                            {eq.brand} {eq.model}
-                            <button
-                              type="button"
-                              onClick={() => setFormData(prev => ({
-                                ...prev,
-                                equipments: prev.equipments.filter(id => id !== eqId)
-                              }))}
-                              className="ml-2"
-                            >
-                              ×
-                            </button>
-                          </Badge>
-                        ) : null;
-                      })}
-                    </div>
-                  )}
-                </div>
+                    }}>
+                      <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                      <SelectContent>
+                        {availableEquipments.map(equipment => (
+                          <SelectItem key={equipment.id} value={String(equipment.id)}>
+                            {equipment.brand} {equipment.model}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {formData.equipments.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {formData.equipments.map(eqId => {
+                          const eq = availableEquipments.find(e => String(e.id) === eqId);
+                          return eq ? (
+                            <Badge key={eqId} variant="secondary">
+                              {eq.brand} {eq.model}
+                              <button type="button"
+                                onClick={() => setFormData(prev => ({
+                                  ...prev, equipments: prev.equipments.filter(id => id !== eqId)
+                                }))} className="ml-2">&times;</button>
+                            </Badge>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="purpose">Finalidade da Solicitação</Label>
-                  <Textarea
-                    id="purpose"
-                    value={formData.purpose}
+                  <Textarea id="purpose" value={formData.purpose}
                     onChange={(e) => setFormData(prev => ({ ...prev, purpose: e.target.value }))}
-                    placeholder="Descreva o propósito da solicitação..."
-                    required
-                  />
+                    placeholder="Descreva o propósito..." required />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="expectedReturnDate">Data Prevista de Devolução</Label>
-                    <Input
-                      id="expectedReturnDate"
-                      type="date"
-                      value={formData.expectedReturnDate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnDate: e.target.value }))}
-                      min={new Date().toISOString().split('T')[0]}
-                      required
-                    />
-                  </div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="reqMesmoDia"
+                    checked={formData.devolucao_mesmo_dia || false}
+                    onChange={(e) => setFormData(prev => ({ ...prev, devolucao_mesmo_dia: e.target.checked }))}
+                    className="h-4 w-4" />
+                  <Label htmlFor="reqMesmoDia">Devolução no mesmo dia?</Label>
+                </div>
 
+                {formData.devolucao_mesmo_dia ? (
                   <div className="space-y-2">
-                    <Label htmlFor="expectedReturnTime">Hora Prevista</Label>
-                    <Input
-                      id="expectedReturnTime"
-                      type="time"
-                      value={formData.expectedReturnTime}
+                    <Label>Hora Prevista de Devolução</Label>
+                    <Input type="time" value={formData.expectedReturnTime}
                       onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnTime: e.target.value }))}
-                    />
+                      required />
                   </div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Data Prevista de Devolução</Label>
+                      <Input type="date" value={formData.expectedReturnDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnDate: e.target.value }))}
+                        min={new Date().toISOString().split('T')[0]} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Hora Prevista</Label>
+                      <Input type="time" value={formData.expectedReturnTime}
+                        onChange={(e) => setFormData(prev => ({ ...prev, expectedReturnTime: e.target.value }))} />
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="notes">Observações (opcional)</Label>
