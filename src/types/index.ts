@@ -124,7 +124,8 @@ export interface LoanRequest {
 
   // Same-day return
   devolucaoMesmoDia: boolean;
-  diasPrevistosDevolucao?: number;
+  dataPrevistaDevolucao?: string;
+  qrcode_hash?: string;
 
   createdAt: string;
   updatedAt: string;

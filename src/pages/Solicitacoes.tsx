@@ -632,6 +632,7 @@ export const Solicitacoes = () => {
                       <TableHead>Finalidade</TableHead>
                       <TableHead>Data Prevista</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>QR</TableHead>
                       <TableHead>Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -652,6 +653,15 @@ export const Solicitacoes = () => {
                         </TableCell>
                         <TableCell>{formatDate(request.expectedReturnDate)}</TableCell>
                         <TableCell>{getStatusBadge(request.status)}</TableCell>
+                        <TableCell>
+                          {(request.qrcode_hash || (request as any).qrcode_hash) ? (
+                            <a href={`/consulta/${request.qrcode_hash || (request as any).qrcode_hash}`}
+                              target="_blank" rel="noreferrer" title="Ver QR Code">
+                              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=40x40&data=${window.location.origin}/consulta/${request.qrcode_hash || (request as any).qrcode_hash}`}
+                                className="w-8 h-8" alt="QR" />
+                            </a>
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
+                        </TableCell>
                         <TableCell>
                           <div className="flex gap-2 flex-wrap">
                             {canApprove() && (
@@ -704,6 +714,7 @@ export const Solicitacoes = () => {
                       <TableHead>Data Prevista</TableHead>
                       <TableHead>Técnico</TableHead>
                       <TableHead>Levantamento</TableHead>
+                      <TableHead>QR</TableHead>
                       <TableHead>Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -723,6 +734,13 @@ export const Solicitacoes = () => {
                           ) : (
                             <Badge variant="outline">Pendente</Badge>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          {(request.qrcode_hash || (request as any).qrcode_hash) ? (
+                            <a href={`/consulta/${request.qrcode_hash || (request as any).qrcode_hash}`} target="_blank" rel="noreferrer">
+                              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=40x40&data=${window.location.origin}/consulta/${request.qrcode_hash || (request as any).qrcode_hash}`} className="w-8 h-8" alt="QR" />
+                            </a>
+                          ) : <span className="text-xs text-muted-foreground">—</span>}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2 flex-wrap">
@@ -774,6 +792,7 @@ export const Solicitacoes = () => {
                     <TableHead>Finalidade</TableHead>
                     <TableHead>Data Prevista</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>QR</TableHead>
                     <TableHead>Motivo</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -787,6 +806,13 @@ export const Solicitacoes = () => {
                       </TableCell>
                       <TableCell>{formatDate(request.expected_return_date || request.expectedReturnDate)}</TableCell>
                       <TableCell>{getStatusBadge(request.status)}</TableCell>
+                      <TableCell>
+                        {(request.qrcode_hash || (request as any).qrcode_hash) ? (
+                          <a href={`/consulta/${request.qrcode_hash || (request as any).qrcode_hash}`} target="_blank" rel="noreferrer">
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=40x40&data=${window.location.origin}/consulta/${request.qrcode_hash || (request as any).qrcode_hash}`} className="w-8 h-8" alt="QR" />
+                          </a>
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell>
                         <p className="max-w-xs truncate">{request.motivoDecisao || '-'}</p>
                       </TableCell>

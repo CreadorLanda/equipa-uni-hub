@@ -189,6 +189,7 @@ class LoanRequestSerializer(serializers.ModelSerializer):
             'data_levantamento', 'confirmado_pelo_tecnico',
             'confirmado_pelo_utente', 'data_confirmacao_utente',
             'confirmacao_completa',
+            'qrcode_hash',
             'devolucao_mesmo_dia', 'data_prevista_devolucao',
             'created_at', 'updated_at',
             'user_name', 'tecnico_name', 'aprovador_name', 'cancelador_name',
@@ -262,7 +263,7 @@ class LoanRequestListSerializer(serializers.ModelSerializer):
             'id', 'user_name', 'purpose', 'expected_return_date',
             'status', 'tecnico_name', 'aprovador_name',
             'confirmado_pelo_tecnico', 'confirmado_pelo_utente', 'confirmacao_completa',
-            'devolucao_mesmo_dia', 'created_at'
+            'qrcode_hash', 'devolucao_mesmo_dia', 'created_at'
         ]
 
 

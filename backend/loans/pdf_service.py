@@ -134,6 +134,8 @@ class LoanRequestPDFGenerator:
                 request_info.append(['Equipamento:', label])
         if req.devolucao_mesmo_dia:
             request_info.append(['Devolução:', 'Mesmo dia'])
+        if req.qrcode_hash:
+            request_info.append(['QR Code:', req.qrcode_hash])
         
         request_table = Table(request_info, colWidths=[7*cm, 10*cm])
         request_table.setStyle(TableStyle([

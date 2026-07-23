@@ -1,3 +1,4 @@
+import hashlib, uuid
 from django.db import models
 from django.utils import timezone
 from django.conf import settings
@@ -458,6 +459,12 @@ class LoanRequest(models.Model):
         verbose_name='Data prevista de devolução'
     )
     
+    # QR Code
+    qrcode_hash = models.CharField(
+        max_length=64, unique=True, blank=True, null=True,
+        verbose_name='Hash do QR Code'
+    )
+    
     # Campos de auditoria
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -499,6 +506,12 @@ class LoanRequest(models.Model):
     def confirmacao_completa(self):
         return self.confirmado_pelo_tecnico and self.confirmado_pelo_utente
     
+    def save(self, *args, **kwargs):
+        if not self.qrcode_hash:
+            raw = f"LR{self.id or ''}-{uuid.uuid4().hex[:8]}"
+            self.qrcode_hash = hashlib.sha256(raw.encode()).hexdigest()[:16]
+        super().save(*args, **kwargs)
+
     def aprovar(self, aprovador, motivo=''):
         self.status = 'autorizado'
         self.aprovado_por = aprovador
