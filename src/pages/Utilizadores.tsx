@@ -78,7 +78,7 @@ export const Utilizadores = () => {
   };
 
   const canManageUsers = () => {
-    return currentUser?.role === 'tecnico';
+    return currentUser?.role && ['admin', 'tecnico'].includes(currentUser.role);
   };
 
   const filteredUsers = users.filter(user => {
