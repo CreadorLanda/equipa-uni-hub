@@ -38,7 +38,6 @@ const menuItems = [
   { title: "Empréstimos", url: "/emprestimos", icon: HandCoins, roles: ['admin', 'tecnico', 'docente', 'secretario', 'coordenador'] },
   { title: "Pacotes", url: "/pacotes", icon: Package, roles: ['admin', 'tecnico', 'secretario', 'coordenador'] },
   { title: "Solicitações", url: "/solicitacoes", icon: FileText, roles: ['admin', 'tecnico', 'docente', 'secretario', 'coordenador'] },
-  { title: "Atribuidores", url: "/atribuidores", icon: UserPlus, roles: ['admin'] },
   { title: "Utilizadores", url: "/utilizadores", icon: Users, roles: ['admin', 'tecnico'] },
   { title: "Relatórios", url: "/relatorios", icon: FileText, roles: ['admin', 'tecnico'] },
   { title: "Consultar", url: "/consultar", icon: Search, roles: ['admin', 'tecnico', 'docente', 'secretario', 'coordenador'] },

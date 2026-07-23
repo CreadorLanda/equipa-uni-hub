@@ -23,7 +23,9 @@ import {
 import { User, UserRole } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { usersAPI } from '@/lib/api';
+import { usersAPI, atribuidoresAPI } from '@/lib/api';
+import { AtribuidorEventual } from '@/types';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const roleOptions: { value: UserRole; label: string }[] = [
   { value: 'tecnico', label: 'Técnico' },
@@ -56,9 +58,39 @@ export const Utilizadores = () => {
     department: ''
   });
 
+  const [atribuidores, setAtribuidores] = useState<AtribuidorEventual[]>([]);
+  const [atrLoading, setAtrLoading] = useState(false);
+  const [atrDialogOpen, setAtrDialogOpen] = useState(false);
+  const [atrForm, setAtrForm] = useState({
+    nome: '', morada: '', grau_academico: '', entidade_empregadora: '',
+    sexo: 'M' as 'M' | 'F' | 'O', funcao: 'outro', funcao_outro: '',
+  });
+
   useEffect(() => {
     loadUsers();
   }, []);
+
+  const loadAtribuidores = async () => {
+    setAtrLoading(true);
+    try {
+      const data = await atribuidoresAPI.list();
+      setAtribuidores(Array.isArray(data) ? data : (data as any).data || []);
+    } catch { /* ignore */ }
+    finally { setAtrLoading(false); }
+  };
+
+  const handleAtrSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await atribuidoresAPI.create(atrForm);
+      setAtrDialogOpen(false);
+      setAtrForm({ nome: '', morada: '', grau_academico: '', entidade_empregadora: '', sexo: 'M', funcao: 'outro', funcao_outro: '' });
+      loadAtribuidores();
+      toast({ title: "Atribuidor criado!" });
+    } catch {
+      toast({ title: "Erro", description: "Não foi possível criar.", variant: "destructive" });
+    }
+  };
 
   const loadUsers = async () => {
     try {
@@ -336,6 +368,13 @@ export const Utilizadores = () => {
 
   return (
     <div className="space-y-6">
+      <Tabs defaultValue="users" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="users">Utilizadores</TabsTrigger>
+          {currentUser?.role === 'admin' && <TabsTrigger value="atribuidores">Atribuidores Eventuais</TabsTrigger>}
+        </TabsList>
+
+        <TabsContent value="users" className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-primary">Gestão de Utilizadores</h1>
@@ -672,6 +711,84 @@ export const Utilizadores = () => {
           )}
         </CardContent>
       </Card>
+    </TabsContent>
+
+    <TabsContent value="atribuidores" className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-primary">Atribuidores Eventuais</h1>
+        <Dialog open={atrDialogOpen} onOpenChange={setAtrDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-gradient-primary" onClick={() => loadAtribuidores()}>
+              <Plus className="w-4 h-4 mr-2" /> Novo Atribuidor
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Novo Atribuidor Eventual</DialogTitle></DialogHeader>
+            <form onSubmit={handleAtrSubmit} className="space-y-3">
+              <div><Label>Nome</Label><Input required value={atrForm.nome} onChange={e => setAtrForm(p => ({...p, nome: e.target.value}))} /></div>
+              <div><Label>Morada</Label><Input required value={atrForm.morada} onChange={e => setAtrForm(p => ({...p, morada: e.target.value}))} /></div>
+              <div><Label>Grau Académico</Label><Input required value={atrForm.grau_academico} onChange={e => setAtrForm(p => ({...p, grau_academico: e.target.value}))} /></div>
+              <div><Label>Entidade Empregadora (opcional)</Label><Input value={atrForm.entidade_empregadora} onChange={e => setAtrForm(p => ({...p, entidade_empregadora: e.target.value}))} /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label>Sexo</Label>
+                  <select value={atrForm.sexo} onChange={e => setAtrForm(p => ({...p, sexo: e.target.value as any}))}
+                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm">
+                    <option value="M">Masculino</option><option value="F">Feminino</option><option value="O">Outro</option>
+                  </select>
+                </div>
+                <div><Label>Função</Label>
+                  <select value={atrForm.funcao} onChange={e => setAtrForm(p => ({...p, funcao: e.target.value}))}
+                    className="flex h-10 w-full rounded-md border px-3 py-2 text-sm">
+                    <option value="formador">Formador</option><option value="palestrante">Palestrante</option>
+                    <option value="monitor">Monitor</option><option value="mentor">Mentor</option><option value="outro">Outro</option>
+                  </select>
+                </div>
+              </div>
+              {atrForm.funcao === 'outro' && (
+                <div><Label>Especifique</Label><Input value={atrForm.funcao_outro} onChange={e => setAtrForm(p => ({...p, funcao_outro: e.target.value}))} /></div>
+              )}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setAtrDialogOpen(false)}>Cancelar</Button>
+                <Button type="submit">Criar</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {atribuidores.map(a => (
+          <Card key={a.id}>
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-start">
+                <CardTitle className="text-base">{a.nome}</CardTitle>
+                <Badge variant={a.is_active ? "default" : "secondary"}>{a.is_active ? "Ativo" : "Inativo"}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="text-sm space-y-1 text-muted-foreground">
+              <p><span className="font-medium">Função:</span> {a.funcao}{a.funcao_outro ? ` — ${a.funcao_outro}` : ''}</p>
+              <p><span className="font-medium">Grau:</span> {a.grau_academico}</p>
+              {a.entidade_empregadora && <p><span className="font-medium">Empregador:</span> {a.entidade_empregadora}</p>}
+              <div className="flex gap-2 pt-2">
+                {a.is_active ? (
+                  <Button size="sm" variant="outline" onClick={async () => { await atribuidoresAPI.deactivate(a.id); loadAtribuidores(); }}>
+                    <Power className="mr-1 h-3 w-3" /> Desativar
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={async () => { await atribuidoresAPI.activate(a.id); loadAtribuidores(); }}>
+                    <Power className="mr-1 h-3 w-3" /> Ativar
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {!atrLoading && atribuidores.length === 0 && (
+          <p className="text-muted-foreground col-span-full text-center py-8">Nenhum atribuidor eventual.</p>
+        )}
+      </div>
+    </TabsContent>
+    </Tabs>
     </div>
   );
 };

@@ -10,7 +10,6 @@ import { Login } from "@/pages/Login";
 import { Dashboard } from "@/pages/Dashboard";
 import { Equipamentos } from "@/pages/Equipamentos";
 import { Emprestimos } from "@/pages/Emprestimos";
-import { Atribuidores } from "@/pages/Atribuidores";
 import { ConsultaQR } from "@/pages/ConsultaQR";
 import { Relatorios } from "@/pages/Relatorios";
 import { Consultar } from "@/pages/Consultar";
@@ -52,11 +51,6 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="/consulta/:hash" element={<ConsultaQR />} />
-              <Route path="/atribuidores" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <Atribuidores />
-                </ProtectedRoute>
-              } />
               <Route path="/pacotes" element={
                 <ProtectedRoute allowedRoles={['admin', 'tecnico', 'secretario', 'coordenador']}>
                   <Pacotes />
