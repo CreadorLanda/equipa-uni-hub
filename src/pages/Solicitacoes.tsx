@@ -140,10 +140,10 @@ export const Solicitacoes = () => {
       return;
     }
 
-    if (formData.quantity > 0 && formData.quantity <= 5) {
+    if (formData.quantity > 0 && formData.quantity <= 1) {
       toast({
         title: "Quantidade inválida",
-        description: "Para solicitações por quantidade, o mínimo é 6 equipamentos.",
+        description: "Para solicitações por quantidade, deve ser superior a 1 equipamento.",
         variant: "destructive"
       });
       return;
@@ -188,7 +188,7 @@ export const Solicitacoes = () => {
   const resetForm = () => {
     setFormData({
       equipments: [],
-      quantity: 6,
+    quantity: 2,
       purpose: '',
       expectedReturnDate: '',
       expectedReturnTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toTimeString().slice(0, 5),
@@ -349,7 +349,7 @@ export const Solicitacoes = () => {
               <DialogHeader>
                 <DialogTitle>Nova Solicitação de Empréstimo</DialogTitle>
                 <DialogDescription>
-                  Preencha os dados para solicitar empréstimo de múltiplos equipamentos (quantidade superior a 5).
+                  Preencha os dados para solicitar equipamentos.
                 </DialogDescription>
               </DialogHeader>
               
@@ -357,7 +357,7 @@ export const Solicitacoes = () => {
                 <div className="flex gap-2">
                   <Button type="button"
                     variant={formData.quantity > 0 ? "default" : "outline"} size="sm"
-                    onClick={() => setFormData(prev => ({ ...prev, quantity: 6, equipments: [] }))}>
+                    onClick={() => setFormData(prev => ({ ...prev, quantity: 2, equipments: [] }))}>
                     Por Quantidade
                   </Button>
                   <Button type="button"
@@ -370,20 +370,18 @@ export const Solicitacoes = () => {
                 {formData.quantity > 0 ? (
                   <div className="space-y-2">
                     <Label>Quantidade de Equipamentos</Label>
-                    <Input type="number" min="6" value={formData.quantity}
+                    <Input type="number" min="2" value={formData.quantity}
                       onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) }))}
                       required />
-                    <p className="text-sm text-muted-foreground">Mínimo: 6 equipamentos</p>
+                    <p className="text-sm text-muted-foreground">Mínimo: superior a 1 equipamento</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <Label>Equipamentos</Label>
+                    <Label>Equipamento (selecione apenas 1)</Label>
                     <Select value={formData.equipments[0] || ''} onValueChange={(value) => {
-                      if (!formData.equipments.includes(value)) {
-                        setFormData(prev => ({ ...prev, equipments: [...prev.equipments, value] }));
-                      }
+                      setFormData(prev => ({ ...prev, equipments: value ? [value] : [] }));
                     }}>
-                      <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Selecionar equipamento" /></SelectTrigger>
                       <SelectContent>
                         {availableEquipments.map(equipment => (
                           <SelectItem key={equipment.id} value={String(equipment.id)}>
@@ -393,7 +391,7 @@ export const Solicitacoes = () => {
                       </SelectContent>
                     </Select>
                     {formData.equipments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
+                      <div className="flex gap-2 mt-2">
                         {formData.equipments.map(eqId => {
                           const eq = availableEquipments.find(e => String(e.id) === eqId);
                           return eq ? (
@@ -401,7 +399,7 @@ export const Solicitacoes = () => {
                               {eq.brand} {eq.model}
                               <button type="button"
                                 onClick={() => setFormData(prev => ({
-                                  ...prev, equipments: prev.equipments.filter(id => id !== eqId)
+                                  ...prev, equipments: []
                                 }))} className="ml-2">&times;</button>
                             </Badge>
                           ) : null;
