@@ -29,18 +29,17 @@ export function ConsultaQR() {
     if (!hash) return;
     setLoading(true);
     try {
-      const eq = await equipmentAPI.byQRCode(hash);
-      setEquip(eq);
-      setError("");
+      const resp = await equipmentAPI.byQRCode(hash);
+      if (resp.type === 'equipment') {
+        setEquip(resp.data);
+        setError("");
+      } else if (resp.type === 'loan_request') {
+        setError("QR Code de uma solicitação. Consulte em Solicitações.");
+      } else {
+        setError("Tipo não reconhecido.");
+      }
     } catch {
-      try {
-        const list: Equipment[] = await equipmentAPI.list({ search: hash });
-        const found = (Array.isArray(list) ? list : (list as any).results || []).find(
-          (e: Equipment) => e.qrcode_hash === hash
-        );
-        if (found) { setEquip(found); setError(""); return; }
-      } catch {}
-      setError("Equipamento não encontrado.");
+      setError("Nada encontrado para este QR Code.");
     } finally {
       setLoading(false);
     }

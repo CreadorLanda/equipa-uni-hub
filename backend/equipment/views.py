@@ -128,12 +128,19 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         hash = request.query_params.get('hash')
         if not hash:
             return Response({'error': 'hash obrigatório'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            eq = Equipment.objects.get(qrcode_hash=hash)
-            serializer = EquipmentSerializer(eq)
-            return Response(serializer.data)
-        except Equipment.DoesNotExist:
-            return Response({'error': 'Equipamento não encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+        from loans.models import LoanRequest
+        from loans.serializers import LoanRequestSerializer
+
+        eq = Equipment.objects.filter(qrcode_hash=hash).first()
+        if eq:
+            return Response({'type': 'equipment', 'data': EquipmentSerializer(eq).data})
+
+        lr = LoanRequest.objects.filter(qrcode_hash=hash).first()
+        if lr:
+            return Response({'type': 'loan_request', 'data': LoanRequestSerializer(lr).data})
+
+        return Response({'error': 'Nada encontrado para este QR Code'}, status=status.HTTP_404_NOT_FOUND)
 
     @action(detail=True, methods=['post'])
     def set_maintenance(self, request, pk=None):
