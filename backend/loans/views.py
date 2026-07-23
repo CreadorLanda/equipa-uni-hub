@@ -82,22 +82,18 @@ class LoanViewSet(viewsets.ModelViewSet):
         return queryset
     
     def perform_create(self, serializer):
-        """
-        Personaliza a criação de empréstimo
-        """
         user_data = serializer.validated_data.get('user')
-        
-        # Se não é técnico, só pode criar empréstimos para si mesmo
-        if self.request.user.role != 'tecnico':
+
+        # Admin e técnico podem criar para qualquer utente
+        if self.request.user.role in ['admin', 'tecnico']:
+            loan = serializer.save(created_by=self.request.user)
+        else:
+            # Outros users só criam para si mesmos
             if user_data and user_data != self.request.user:
                 raise permissions.PermissionDenied(
-                    'Você só pode criar empréstimos para si mesmo. Apenas técnicos podem criar empréstimos para outros usuários.'
+                    'Só pode criar empréstimos para si mesmo. Apenas admin/técnico podem criar para outros.'
                 )
-            # Força o usuário como sendo o próprio usuário autenticado
             loan = serializer.save(user=self.request.user, created_by=self.request.user)
-        else:
-            # Técnico pode definir para qual usuário é o empréstimo
-            loan = serializer.save(created_by=self.request.user)
         
         # Envia notificação de empréstimo criado (pendente)
         try:

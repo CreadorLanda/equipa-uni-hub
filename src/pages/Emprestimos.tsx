@@ -114,9 +114,11 @@ export const Emprestimos = () => {
 
   // Verificações de permissão
   const canCreateLoan = () => {
-    // APENAS técnico pode criar empréstimos diretos
-    // Docentes/secretários devem usar solicitações ou reservas
-    return user?.role === 'tecnico';
+    return !!user;
+  };
+
+  const canCreateForOthers = () => {
+    return user?.role && ['admin', 'tecnico'].includes(user.role);
   };
 
   const canReturnLoan = (loan: Loan) => {
@@ -470,8 +472,8 @@ export const Emprestimos = () => {
             </DialogHeader>
             
             <form onSubmit={handleNewLoan} className="space-y-4">
-              {/* Campo de seleção de usuário (apenas para técnicos) */}
-              {canCreateLoan() && users.length > 0 && (
+              {/* Campo de seleção de usuário (admin/técnico podem criar p/ outros) */}
+              {canCreateForOthers() && users.length > 0 && (
                 <div className="space-y-2">
                   <Label htmlFor="user">Empréstimo para Utente</Label>
                   <Select 
