@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { equipmentAPI } from "@/lib/api";
-import { Equipment } from "@/types";
-import { ArrowLeft, QrCode, ExternalLink } from "lucide-react";
+import { Equipment, LoanRequest } from "@/types";
+import { ArrowLeft, QrCode, ExternalLink, FileText } from "lucide-react";
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   disponivel: { label: "Disponível", color: "bg-success text-success-foreground" },
@@ -18,23 +18,35 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   inativo: { label: "Inativo", color: "bg-muted text-muted-foreground" },
 };
 
+const reqStatusConfig: Record<string, { label: string; color: string }> = {
+  pendente: { label: "Pendente", color: "bg-warning text-warning-foreground" },
+  autorizado: { label: "Autorizado", color: "bg-info text-info-foreground" },
+  rejeitado: { label: "Rejeitado", color: "bg-destructive text-destructive-foreground" },
+  cancelado: { label: "Cancelado", color: "bg-muted text-muted-foreground" },
+};
+
 export function ConsultaQR() {
   const { hash } = useParams();
   const { user } = useAuth();
   const [equip, setEquip] = useState<Equipment | null>(null);
+  const [loanReq, setLoanReq] = useState<any>(null);
+  const [type, setType] = useState<'' | 'equipment' | 'loan_request'>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const loadEquipment = async () => {
+  const loadData = async () => {
     if (!hash) return;
     setLoading(true);
     try {
       const resp = await equipmentAPI.byQRCode(hash);
       if (resp.type === 'equipment') {
         setEquip(resp.data);
+        setType('equipment');
         setError("");
       } else if (resp.type === 'loan_request') {
-        setError("QR Code de uma solicitação. Consulte em Solicitações.");
+        setLoanReq(resp.data);
+        setType('loan_request');
+        setError("");
       } else {
         setError("Tipo não reconhecido.");
       }
@@ -45,7 +57,7 @@ export function ConsultaQR() {
     }
   };
 
-  useEffect(() => { loadEquipment(); }, [hash]);
+  useEffect(() => { loadData(); }, [hash]);
 
   const isTechOrAdmin = user?.role && ["admin", "tecnico"].includes(user.role);
 
@@ -72,7 +84,8 @@ export function ConsultaQR() {
               </div>
             )}
 
-            {equip && (
+            {/* EQUIPMENT */}
+            {equip && type === 'equipment' && (
               <div className="space-y-4">
                 <div className="text-center">
                   <h2 className="text-2xl font-bold">{equip.brand} {equip.model}</h2>
@@ -90,38 +103,55 @@ export function ConsultaQR() {
                   <div><span className="text-muted-foreground">Aquisição:</span> <span>{equip.acquisitionDate ? new Date(equip.acquisitionDate).toLocaleDateString('pt-BR') : '-'}</span></div>
                 </div>
 
-                {equip.description && (
-                  <div><span className="text-sm text-muted-foreground">Descrição:</span><p className="text-sm mt-1">{equip.description}</p></div>
-                )}
+                {equip.description && <div><span className="text-sm text-muted-foreground">Descrição:</span><p className="text-sm mt-1">{equip.description}</p></div>}
 
                 <div className="flex justify-center pt-2">
-                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${window.location.origin}/consulta/${equip.qrcode_hash}`}
-                    alt="QR Code" className="inline-block" />
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${window.location.origin}/consulta/${equip.qrcode_hash}`} alt="QR" className="inline-block" />
                 </div>
 
                 {isTechOrAdmin && (
                   <div className="flex gap-2 justify-center pt-2">
-                    <Button size="sm" variant="outline" onClick={() => {
-                      equipmentAPI.setMaintenance(equip.id);
-                      toast.success("Marcado para manutenção");
-                      loadEquipment();
-                    }}>Manutenção</Button>
-                    <Button size="sm" variant="outline" onClick={() => {
-                      equipmentAPI.setAvailable(equip.id);
-                      toast.success("Marcado como disponível");
-                      loadEquipment();
-                    }}>Disponível</Button>
-                    <Button size="sm" variant="outline" onClick={() => {
-                      equipmentAPI.setInactive(equip.id);
-                      toast.success("Desativado");
-                      loadEquipment();
-                    }}>Inativar</Button>
+                    <Button size="sm" variant="outline" onClick={() => { equipmentAPI.setMaintenance(equip.id); toast.success("Manutenção"); loadData(); }}>Manutenção</Button>
+                    <Button size="sm" variant="outline" onClick={() => { equipmentAPI.setAvailable(equip.id); toast.success("Disponível"); loadData(); }}>Disponível</Button>
+                    <Button size="sm" variant="outline" onClick={() => { equipmentAPI.setInactive(equip.id); toast.success("Inativado"); loadData(); }}>Inativar</Button>
                   </div>
                 )}
+                <div className="text-center pt-2">
+                  <a href="/equipamentos" className="text-sm text-primary underline inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Ir para Equipamentos</a>
+                </div>
+              </div>
+            )}
+
+            {/* LOAN REQUEST */}
+            {loanReq && type === 'loan_request' && (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold">Solicitação #{loanReq.id}</h2>
+                  <Badge className={`mt-2 ${reqStatusConfig[loanReq.status]?.color || ""}`}>
+                    {reqStatusConfig[loanReq.status]?.label || loanReq.status}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div><span className="text-muted-foreground">Utente:</span> <span className="font-medium">{loanReq.user_name || '-'}</span></div>
+                  <div><span className="text-muted-foreground">Finalidade:</span> <span>{loanReq.purpose || '-'}</span></div>
+                  <div><span className="text-muted-foreground">Data Devolução:</span> <span>{loanReq.expected_return_date ? new Date(loanReq.expected_return_date).toLocaleDateString('pt-BR') : '-'}</span></div>
+                  {loanReq.tecnico_name && <div><span className="text-muted-foreground">Técnico:</span> <span>{loanReq.tecnico_name}</span></div>}
+                  {loanReq.devolucao_mesmo_dia && <div><span className="text-muted-foreground">Devolução:</span> <span>Mesmo dia</span></div>}
+                  <div><span className="text-muted-foreground">Criada em:</span> <span>{loanReq.created_at ? new Date(loanReq.created_at).toLocaleDateString('pt-BR') : '-'}</span></div>
+                </div>
+
+                {loanReq.motivo_decisao && (
+                  <div><span className="text-sm text-muted-foreground">Motivo:</span><p className="text-sm mt-1">{loanReq.motivo_decisao}</p></div>
+                )}
+
+                <div className="flex justify-center pt-2">
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${window.location.origin}/consulta/${loanReq.qrcode_hash}`} alt="QR" className="inline-block" />
+                </div>
 
                 <div className="text-center pt-2">
-                  <a href={`/equipamentos`} className="text-sm text-primary underline inline-flex items-center gap-1">
-                    <ExternalLink className="h-3 w-3" /> Ir para Gestão de Equipamentos
+                  <a href="/solicitacoes" className="text-sm text-primary underline inline-flex items-center gap-1">
+                    <FileText className="h-3 w-3" /> Ir para Solicitações
                   </a>
                 </div>
               </div>
