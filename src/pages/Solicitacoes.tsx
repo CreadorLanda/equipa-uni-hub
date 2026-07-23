@@ -133,6 +133,15 @@ export const Solicitacoes = () => {
     }
   };
 
+  const getUserName = (r: any) => r.user_name || r.userName || r.user?.name || '-';
+  const getItemLabel = (r: any) => {
+    if (r.quantity && r.quantity > 0) return `${r.quantity} equipamentos`;
+    if (r.pacote_detail) return `Pacote: ${r.pacote_detail.name}`;
+    if (r.equipments_detail && r.equipments_detail.length > 0)
+      return r.equipments_detail.map((e: any) => e.full_name || `${e.brand||''} ${e.model||''}`).join(', ');
+    return '1 equipamento';
+  };
+
   const handleNewRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -631,13 +640,13 @@ export const Solicitacoes = () => {
                       <TableRow key={request.id}>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{request.userName}</p>
+                            <p className="font-medium">{getUserName(request)}</p>
                             <p className="text-sm text-muted-foreground">
-                              {formatDate(request.createdAt)}
+                              {formatDate(request.created_at || request.createdAt)}
                             </p>
                           </div>
                         </TableCell>
-                        <TableCell>{request.quantity} equipamentos</TableCell>
+                        <TableCell>{getItemLabel(request)}</TableCell>
                         <TableCell>
                           <p className="max-w-md truncate">{request.purpose}</p>
                         </TableCell>
@@ -701,9 +710,9 @@ export const Solicitacoes = () => {
                   <TableBody>
                     {authorizedRequests.map((request) => (
                       <TableRow key={request.id}>
-                        <TableCell>{request.userName}</TableCell>
-                        <TableCell>{request.quantity} equipamentos</TableCell>
-                        <TableCell>{formatDate(request.expectedReturnDate)}</TableCell>
+                        <TableCell>{getUserName(request)}</TableCell>
+                        <TableCell>{getItemLabel(request)}</TableCell>
+                        <TableCell>{formatDate(request.expected_return_date || request.expectedReturnDate)}</TableCell>
                         <TableCell>{request.tecnicoName || '-'}</TableCell>
                         <TableCell>
                           {request.confirmadoPeloTecnico ? (
@@ -771,12 +780,12 @@ export const Solicitacoes = () => {
                 <TableBody>
                   {filteredRequests.map((request) => (
                     <TableRow key={request.id}>
-                      <TableCell>{request.userName}</TableCell>
-                      <TableCell>{request.quantity} equipamentos</TableCell>
+                      <TableCell>{getUserName(request)}</TableCell>
+                      <TableCell>{getItemLabel(request)}</TableCell>
                       <TableCell>
                         <p className="max-w-md truncate">{request.purpose}</p>
                       </TableCell>
-                      <TableCell>{formatDate(request.expectedReturnDate)}</TableCell>
+                      <TableCell>{formatDate(request.expected_return_date || request.expectedReturnDate)}</TableCell>
                       <TableCell>{getStatusBadge(request.status)}</TableCell>
                       <TableCell>
                         <p className="max-w-xs truncate">{request.motivoDecisao || '-'}</p>
