@@ -46,6 +46,9 @@ export const Solicitacoes = () => {
   const [pickupNotes, setPickupNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [qrCodeHash, setQrCodeHash] = useState('');
+  const [qrRequestId, setQrRequestId] = useState('');
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -180,7 +183,14 @@ export const Solicitacoes = () => {
       const newRequest = await loanRequestsAPI.create(payload);
 
       setRequests(prev => [newRequest, ...prev]);
-      
+
+      const qr = newRequest.qrcode_hash || (newRequest as any).qrcode_hash;
+      if (qr) {
+        setQrCodeHash(qr);
+        setQrRequestId(newRequest.id || '');
+        setQrDialogOpen(true);
+      }
+
       const isNormal = !formData.quantity && (formData.equipments.length > 0 || formData.pacote);
       toast({
         title: "Solicitação enviada!",
@@ -944,6 +954,36 @@ export const Solicitacoes = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* QR Code Dialog */}
+      <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>QR Code da Solicitação #{qrRequestId}</DialogTitle>
+            <DialogDescription>
+              Imprima e cole no equipamento ou conjunto de equipamentos.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            {qrCodeHash && (
+              <>
+                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${window.location.origin}/consulta/${qrCodeHash}`}
+                  alt="QR Code" className="border p-2 rounded" />
+                <div className="flex gap-2">
+                  <a href={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${window.location.origin}/consulta/${qrCodeHash}`}
+                    target="_blank" rel="noreferrer"
+                    className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors border border-input bg-background hover:bg-accent h-10 px-4 py-2">
+                    Download QR
+                  </a>
+                  <Button variant="outline" onClick={() => { window.print(); }}>
+                    Imprimir
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
