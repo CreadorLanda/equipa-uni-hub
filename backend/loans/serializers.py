@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.utils import timezone
 from .models import Loan, LoanRequest
 from accounts.serializers import UserPublicSerializer
+from equipment.models import Equipment
 from equipment.serializers import EquipmentSummarySerializer, PackageSummarySerializer
 
 
@@ -169,6 +170,10 @@ class LoanRequestSerializer(serializers.ModelSerializer):
     confirmacao_completa = serializers.ReadOnlyField()
     
     user_detail = UserPublicSerializer(source='user', read_only=True)
+    equipments = serializers.PrimaryKeyRelatedField(
+        many=True, read_only=False, queryset=Equipment.objects.all(),
+        required=False, allow_empty=True
+    )
     equipments_detail = EquipmentSummarySerializer(source='equipments', many=True, read_only=True)
     pacote_detail = PackageSummarySerializer(source='pacote', read_only=True)
     
@@ -206,36 +211,42 @@ class LoanRequestSerializer(serializers.ModelSerializer):
     def validate(self, data):
         equipment_list = data.get('equipments', [])
         pacote = data.get('pacote')
+        quantity = data.get('quantity', 0)
         expected_return_date = data.get('expected_return_date')
-        
-        if not equipment_list and not pacote:
-            raise serializers.ValidationError(
-                'Selecione equipamentos OU um pacote.'
-            )
-        
-        if equipment_list and pacote:
-            raise serializers.ValidationError(
-                'Selecione apenas equipamentos OU um pacote, não ambos.'
-            )
-        
+
+        is_by_quantity = quantity and quantity > 0
+
+        if is_by_quantity:
+            data['equipments'] = []
+            data['pacote'] = None
+        else:
+            if not equipment_list and not pacote:
+                raise serializers.ValidationError(
+                    'Selecione um equipamento ou um pacote.'
+                )
+            if equipment_list and pacote:
+                raise serializers.ValidationError(
+                    'Selecione apenas equipamentos OU um pacote, não ambos.'
+                )
+
         if expected_return_date and expected_return_date < timezone.now().date():
             raise serializers.ValidationError({
                 'expected_return_date': 'Data de devolução não pode ser anterior à data atual.'
             })
-        
+
         return data
-    
+
     def create(self, validated_data):
         equipments_data = validated_data.pop('equipments', [])
-        
+
         if self.context['request'].user.role == 'tecnico':
             validated_data['tecnico_responsavel'] = self.context['request'].user
-        
+
         loan_request = super().create(validated_data)
-        
-        if equipments_data:
+
+        if equipments_data and not validated_data.get('quantity', 0):
             loan_request.equipments.set(equipments_data)
-        
+
         return loan_request
 
 
