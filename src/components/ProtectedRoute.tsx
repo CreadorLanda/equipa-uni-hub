@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { BrandSplash } from '@/components/BrandSplash';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -11,7 +12,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children, 
   allowedRoles 
 }) => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isInitializing } = useAuth();
+
+  // Espera pela validacao da sessao antes de decidir a rota, caso contrario
+  // um refresh redirecciona sempre para /login e depois para /dashboard.
+  if (isInitializing) {
+    return <BrandSplash />;
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

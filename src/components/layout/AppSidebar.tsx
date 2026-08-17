@@ -52,8 +52,12 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
 
   const isActive = (path: string) => currentPath === path;
-  const getNavCls = ({ isActive }: { isActive: boolean }) =>
-    isActive ? "bg-primary  font-medium" : "text-foreground hover:bg-primary/10 hover:text-primary";
+  // Nao passar uma funcao ao className: o Slot do Radix (asChild) serializa-a
+  // para dentro do atributo class e as classes deixam de ser aplicadas.
+  const getNavCls = (active: boolean) =>
+    active
+      ? "!bg-primary !text-primary-foreground font-medium"
+      : "!text-sidebar-foreground hover:!bg-primary/10 hover:!text-primary";
 
   const filteredItems = menuItems.filter(item =>
     user?.role && item.roles.includes(user.role)
@@ -65,18 +69,26 @@ export function AppSidebar() {
       collapsible="icon"
     >
       <SidebarHeader className="border-b p-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-            <MonitorSpeaker className="w-5 h-5 text-white" />
+        {collapsed ? (
+          <img
+            src="/logo-chama.png"
+            alt="Universidade Metodista de Angola"
+            className="mx-auto h-8 w-8 object-contain"
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            <img
+              src="/logo-metodista.png"
+              alt="Universidade Metodista de Angola"
+              className="h-24 w-auto object-contain"
+            />
+            <p className="text-center text-xs font-medium text-muted-foreground">
+              Gestão de Equipamentos
+            </p>
           </div>
-          {!collapsed && (
-            <div>
-              <h2 className="font-bold text-sm">SisEmprest</h2>
-              <p className="text-xs text-muted-foreground">Gestão de Equipamentos</p>
-            </div>
-          )}
-        </div>
+        )}
       </SidebarHeader>
+      <div className="brand-stripe h-1" />
 
       <SidebarContent>
         <SidebarGroup>
@@ -91,7 +103,7 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end
-                      className={getNavCls}
+                      className={getNavCls(isActive(item.url))}
                       title={collapsed ? item.title : undefined}
                     >
                       <item.icon className="mr-3 h-4 w-4" />

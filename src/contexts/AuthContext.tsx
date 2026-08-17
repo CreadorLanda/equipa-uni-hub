@@ -4,6 +4,19 @@ import { authAPI } from '@/lib/api';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const readStoredToken = () =>
+  localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+
+const readStoredUser = () =>
+  localStorage.getItem('user') || sessionStorage.getItem('user');
+
+const clearStoredSession = () => {
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('user');
+  sessionStorage.removeItem('auth_token');
+  sessionStorage.removeItem('user');
+};
+
 interface AuthProviderProps {
   children: ReactNode;
 }
@@ -11,17 +24,23 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  // Enquanto a sessao guardada nao for validada nao se pode decidir rotas,
+  // caso contrario um refresh atira o utilizador para fora da pagina atual.
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string, remember = true): Promise<boolean> => {
     setIsLoading(true);
     try {
       const response = await authAPI.login(email, password);
       const { token, user: userData } = response;
-      
-      // Armazena o token e dados do usuário
-      localStorage.setItem('auth_token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      
+
+      // Com "Lembrar-me" a sessao persiste entre visitas (localStorage);
+      // sem ele termina ao fechar o separador (sessionStorage).
+      clearStoredSession();
+      const store = remember ? localStorage : sessionStorage;
+      store.setItem('auth_token', token);
+      store.setItem('user', JSON.stringify(userData));
+
       setUser(userData);
       return true;
     } catch (error) {
@@ -41,8 +60,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Logout error:', error);
     } finally {
       // Remove dados locais independentemente do resultado
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user');
+      clearStoredSession();
       setUser(null);
       setIsLoading(false);
     }
@@ -51,9 +69,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Verifica se o usuário está autenticado ao carregar a aplicação
   React.useEffect(() => {
     const initializeAuth = async () => {
-      const token = localStorage.getItem('auth_token');
-      const savedUser = localStorage.getItem('user');
-      
+      const token = readStoredToken();
+      const savedUser = readStoredUser();
+
       if (token && savedUser) {
         try {
           // Verifica se o token ainda é válido
@@ -62,10 +80,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch (error) {
           console.error('Token validation error:', error);
           // Token inválido, remove dados locais
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('user');
+          clearStoredSession();
         }
       }
+
+      setIsInitializing(false);
     };
 
     initializeAuth();
@@ -76,7 +95,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     isAuthenticated: !!user,
-    isLoading
+    isLoading,
+    isInitializing
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

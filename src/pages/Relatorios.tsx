@@ -443,26 +443,26 @@ export const Relatorios = () => {
                   </CardContent>
                 </Card>
 
-            <Card className="border-l-4 border-l-secondary">
+            <Card className="border-l-4 border-l-success">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total de Empréstimos</CardTitle>
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-secondary">{totalLoans}</div>
+                <div className="text-2xl font-bold text-success">{totalLoans}</div>
                 <p className="text-xs text-muted-foreground">
                   {activeLoans} ativos
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-l-4 border-l-accent">
+            <Card className="border-l-4 border-l-gold">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total de Reservas</CardTitle>
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-accent">{totalReservations}</div>
+                <div className="text-2xl font-bold text-gold">{totalReservations}</div>
                 <p className="text-xs text-muted-foreground">
                   {activeReservations} ativas
                 </p>
