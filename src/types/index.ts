@@ -197,8 +197,10 @@ export interface DashboardStats {
 
 export interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string, remember?: boolean) => Promise<boolean>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading?: boolean;
+  /** true enquanto a sessão guardada ainda está a ser validada no arranque */
+  isInitializing?: boolean;
 }

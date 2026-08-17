@@ -13,7 +13,8 @@ export const api = {
 
   // Helper para fazer requests autenticados
   request: async <T = any>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-    const token = localStorage.getItem('auth_token');
+    // "Lembrar-me" guarda em localStorage; sem ele, a sessao vive em sessionStorage
+    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
 
     console.log(`API Request: ${options.method || 'GET'} ${endpoint}`, {
       hasToken: !!token,

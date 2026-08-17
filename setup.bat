@@ -67,9 +67,9 @@ echo.
 echo ============================================
 echo  Credenciais de acesso:
 echo  Admin:  admin@unihub.com / admin123
-echo  Tecnico:  tecnico@unihub.com / admin123
-echo  Secretaria: secretaria@unihub.com / admin123
-echo  Docente: ana.santos@unihub.com / admin123
+echo  Tecnico:  tecnico@unihub.com / tecnico123
+echo  Secretaria: secretaria@unihub.com / secretaria123
+echo  Docente: ana.santos@unihub.com / docente123
 echo ============================================
 echo.
 

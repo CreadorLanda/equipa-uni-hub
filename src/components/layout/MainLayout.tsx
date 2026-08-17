@@ -18,7 +18,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <AppSidebar />
         
         <div className="flex flex-col flex-1">
-          <header className="h-16 flex items-center justify-between px-6 bg-white border-b shadow-sm">
+          <header className="h-16 flex items-center justify-between px-6 bg-card border-b shadow-sm">
             <div className="flex items-center gap-4">
               <SidebarTrigger />
               <div>
