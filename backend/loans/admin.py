@@ -162,6 +162,10 @@ class LoanRequestAdmin(admin.ModelAdmin):
         ('Status e Aprovação', {
             'fields': ('status', 'aprovado_por', 'motivo_decisao', 'data_decisao')
         }),
+        ('Documento validado pela Reitoria (RF17)', {
+            'fields': ('documento_validado', 'documento_nome',
+                       'documento_anexado_por', 'documento_anexado_em'),
+        }),
         ('Cancelamento', {
             'fields': ('cancelado_por', 'data_cancelamento', 'motivo_cancelamento'),
             'classes': ('collapse',)

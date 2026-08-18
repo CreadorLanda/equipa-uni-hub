@@ -175,6 +175,87 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({'message': f'Utilizador {user.name} desativado com sucesso.'})
 
     # ---- Atribuidores Eventuais CRUD (admin-only) ----
+    @action(detail=False, methods=['post'])
+    def sincronizar(self, request):
+        """
+        RF01 - Sincroniza os utilizadores com o Sistema de Gestão de Pessoas
+        externo: cria os que faltam localmente e actualiza nome, função e
+        departamento dos que já existem. Só o admin (chefe da DTI) pode correr.
+        """
+        if request.user.role not in ADMIN_ROLES:
+            return Response(
+                {'error': 'Apenas o Admin (Chefe da DTI) pode sincronizar utilizadores.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        from .external_person_service import external_person_service
+
+        pessoas = external_person_service.list_persons()
+        if not pessoas:
+            return Response({
+                'message': 'O Sistema de Gestão de Pessoas não devolveu nenhum registo.',
+                'criados': 0, 'actualizados': 0, 'ignorados': 0,
+            }, status=status.HTTP_200_OK)
+
+        criados, actualizados, ignorados = 0, 0, []
+
+        for pessoa in pessoas:
+            email = (pessoa.get('email') or '').strip().lower()
+            role = pessoa.get('role')
+
+            if not email or role not in User.EXTERNAL_ROLES:
+                ignorados.append(pessoa.get('email') or '(sem email)')
+                continue
+
+            utilizador = User.objects.filter(email__iexact=email).first()
+
+            if utilizador:
+                utilizador.name = pessoa.get('name') or utilizador.name
+                utilizador.role = role
+                utilizador.department = pessoa.get('department') or utilizador.department
+                utilizador.external_id = pessoa.get('external_id') or utilizador.external_id
+                utilizador.is_external = True
+                utilizador.save()
+                actualizados += 1
+            else:
+                novo = User(
+                    email=email,
+                    username=self._username_livre(email),
+                    name=pessoa.get('name') or email,
+                    role=role,
+                    department=pessoa.get('department'),
+                    external_id=pessoa.get('external_id'),
+                    is_external=True,
+                    created_by=request.user,
+                )
+                # Sem palavra-passe utilizavel: quem vem do sistema externo
+                # autentica-se com as credenciais institucionais
+                novo.set_unusable_password()
+                novo.save()
+                criados += 1
+
+        return Response({
+            'message': f'Sincronização concluída: {criados} criado(s), {actualizados} actualizado(s).',
+            'criados': criados,
+            'actualizados': actualizados,
+            'ignorados': len(ignorados),
+            'ignorados_detalhe': ignorados,
+        }, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def _username_livre(email):
+        """
+        Deriva um username do email, acrescentando um sufixo se ja existir
+        (o campo e unico e ha nomes que colidem, como 'admin' ou 'docente').
+        """
+        base = email.split('@')[0][:140] or 'utilizador'
+        candidato = base
+        contador = 1
+        while User.objects.filter(username=candidato).exists():
+            contador += 1
+            candidato = f'{base}{contador}'
+        return candidato
+
     @action(detail=False, methods=['get'])
     def atribuidores(self, request):
         if request.user.role not in ADMIN_ROLES:

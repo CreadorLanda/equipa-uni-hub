@@ -132,6 +132,35 @@ class Loan(models.Model):
         verbose_name='Data prevista de devolução'
     )
 
+    # RF25 - estado fisico verificado pelo tecnico no acto da devolucao
+    ESTADO_DEVOLUCAO_CHOICES = [
+        ('disponivel', 'Bom estado - disponível'),
+        ('manutencao', 'Necessita manutenção'),
+        ('danificado', 'Danificado - indisponível'),
+    ]
+    estado_devolucao = models.CharField(
+        max_length=20,
+        choices=ESTADO_DEVOLUCAO_CHOICES,
+        blank=True, null=True,
+        verbose_name='Estado físico na devolução'
+    )
+    observacoes_devolucao = models.TextField(
+        blank=True, null=True,
+        verbose_name='Observações da devolução'
+    )
+    documento_devolucao = models.FileField(
+        upload_to='devolucoes/%Y/%m/',
+        blank=True, null=True,
+        verbose_name='Imagem ou relatório da devolução'
+    )
+    recebido_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='loans_recebidos',
+        verbose_name='Técnico que recebeu a devolução'
+    )
+
     class Meta:
         db_table = 'loans'
         verbose_name = 'Empréstimo'
@@ -252,22 +281,42 @@ class Loan(models.Model):
             return 0
         return (timezone.now().date() - self.expected_return_date).days
     
-    def return_equipment(self, return_date=None):
+    # Estado fisico registado -> estado que o equipamento assume (RF25)
+    ESTADO_PARA_EQUIPAMENTO = {
+        'disponivel': 'disponivel',
+        'manutencao': 'manutencao',
+        'danificado': 'inativo',
+    }
+
+    def return_equipment(self, return_date=None, estado='disponivel', recebido_por=None):
         if return_date is None:
             return_date = timezone.now().date()
-        
+
+        estado = estado or 'disponivel'
+        novo_estado_equipamento = self.ESTADO_PARA_EQUIPAMENTO.get(estado, 'disponivel')
+
         self.actual_return_date = return_date
         self.status = 'concluido'
+        self.estado_devolucao = estado
+        if recebido_por:
+            self.recebido_por = recebido_por
         self.save()
-        
+
         if self.equipment:
-            self.equipment.status = 'disponivel'
+            self.equipment.status = novo_estado_equipamento
             self.equipment.save()
-        
+
         if self.pacote:
             for item in self.pacote.items.all():
-                item.equipment.status = 'disponivel'
+                item.equipment.status = novo_estado_equipamento
                 item.equipment.save()
+
+        for loan_eq in self.loan_equipments.all():
+            loan_eq.returned = True
+            loan_eq.return_date = timezone.now()
+            loan_eq.save()
+            loan_eq.equipment.status = novo_estado_equipamento
+            loan_eq.equipment.save()
     
     def save(self, *args, **kwargs):
         if self.status == 'ativo' and self.is_overdue:
@@ -328,8 +377,9 @@ class LoanRequest(models.Model):
     Requer aprovação da reitoria e dupla confirmação (técnico + utente)
     """
     REQUEST_STATUS_CHOICES = [
-        ('pendente', 'Pendente'),
-        ('autorizado', 'Autorizado'),
+        ('pendente', 'Em análise'),
+        # RF18: aprovada = pronta para levantamento (nome usado no relatorio)
+        ('autorizado', 'Em levantamento'),
         ('rejeitado', 'Rejeitado'),
         ('cancelado', 'Cancelado'),
     ]
@@ -464,6 +514,35 @@ class LoanRequest(models.Model):
         max_length=64, unique=True, blank=True, null=True,
         verbose_name='Hash do QR Code'
     )
+
+    # RF24 - Comprovativo digital do levantamento, arquivado pelo sistema
+    comprovativo_levantamento = models.FileField(
+        upload_to='solicitacoes/comprovativos/%Y/%m/',
+        blank=True, null=True,
+        verbose_name='Comprovativo digital de levantamento'
+    )
+
+    # RF17 - Documento validado (despacho da Reitoria) anexado na decisao
+    documento_validado = models.FileField(
+        upload_to='solicitacoes/documentos/%Y/%m/',
+        blank=True, null=True,
+        verbose_name='Documento validado pela Reitoria'
+    )
+    documento_nome = models.CharField(
+        max_length=255, blank=True, null=True,
+        verbose_name='Nome original do documento'
+    )
+    documento_anexado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='loan_requests_documentos',
+        verbose_name='Documento anexado por'
+    )
+    documento_anexado_em = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Data do anexo do documento'
+    )
     
     # Campos de auditoria
     created_at = models.DateTimeField(auto_now_add=True)
@@ -512,6 +591,18 @@ class LoanRequest(models.Model):
             self.qrcode_hash = hashlib.sha256(raw.encode()).hexdigest()[:16]
         super().save(*args, **kwargs)
 
+    def anexar_documento(self, ficheiro, utilizador=None):
+        """Anexa o documento despachado pela Reitoria (RF17)."""
+        self.documento_validado = ficheiro
+        self.documento_nome = getattr(ficheiro, 'name', None)
+        self.documento_anexado_por = utilizador
+        self.documento_anexado_em = timezone.now()
+        self.save()
+
+    @property
+    def tem_documento(self):
+        return bool(self.documento_validado)
+
     def aprovar(self, aprovador, motivo=''):
         self.status = 'autorizado'
         self.aprovado_por = aprovador
@@ -536,6 +627,47 @@ class LoanRequest(models.Model):
         self.motivo_cancelamento = motivo
         self.save()
     
+    @property
+    def equipamentos_atribuidos(self):
+        """Quantos equipamentos ja foram associados a esta solicitacao."""
+        return self.equipments.count()
+
+    @property
+    def equipamentos_em_falta(self):
+        """Quantos faltam atribuir numa solicitacao por quantidade (RF30)."""
+        if not self.quantity:
+            return 0
+        return max(self.quantity - self.equipments.count(), 0)
+
+    @property
+    def atribuicao_completa(self):
+        if not self.quantity:
+            return True
+        return self.equipamentos_em_falta == 0
+
+    def atribuir_equipamentos(self, equipamentos, tecnico=None):
+        """
+        RF30 - Associa equipamentos a uma solicitacao ja autorizada e
+        reserva-os ate a confirmacao do levantamento (RN07).
+        """
+        for equipamento in equipamentos:
+            self.equipments.add(equipamento)
+            equipamento.status = 'reservado'
+            equipamento.save()
+
+        if tecnico and not self.tecnico_responsavel:
+            self.tecnico_responsavel = tecnico
+            self.save()
+
+        return self.equipamentos_em_falta
+
+    def remover_equipamento(self, equipamento):
+        """Desfaz uma atribuicao enquanto o levantamento nao for confirmado."""
+        self.equipments.remove(equipamento)
+        if equipamento.status == 'reservado':
+            equipamento.status = 'disponivel'
+            equipamento.save()
+
     def confirmar_levantamento_tecnico(self, tecnico):
         """Técnico confirma o levantamento"""
         self.confirmado_pelo_tecnico = True

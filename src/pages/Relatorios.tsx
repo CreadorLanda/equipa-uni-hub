@@ -275,6 +275,47 @@ export const Relatorios = () => {
     });
   };
 
+  // Exportação CSV reutilizável (usada pelos relatórios de atrasos e devoluções)
+  const exportarCSV = (nome: string, headers: string[], rows: (string | number)[][]) => {
+    if (rows.length === 0) {
+      toast({
+        title: 'Nada para exportar',
+        description: 'Não há registos no período selecionado.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const csv = [headers, ...rows]
+      .map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';'))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${nome}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    toast({ title: 'Exportado com sucesso!', description: 'O ficheiro CSV foi gerado.' });
+  };
+
+  const estadoDevolucaoLabel = (estado?: string | null) => {
+    if (estado === 'manutencao') return 'Necessita manutenção';
+    if (estado === 'danificado') return 'Danificado';
+    if (estado === 'disponivel') return 'Bom estado';
+    return 'Não registado';
+  };
+
+  const diasEmAtraso = (loan: any) => {
+    if (typeof loan.days_overdue === 'number') return loan.days_overdue;
+    const prevista = loan.expected_return_date || loan.expectedReturnDate;
+    if (!prevista) return 0;
+    const diff = Date.now() - new Date(prevista).getTime();
+    return Math.max(Math.floor(diff / 86400000), 0);
+  };
+
   // Estatísticas gerais (dados reais)
   const totalEquipments = stats?.totalEquipments || equipments.length;
   const availableEquipments = stats?.availableEquipments || equipments.filter(eq => eq.status === 'disponivel').length;
@@ -320,6 +361,17 @@ export const Relatorios = () => {
 
     return { filteredLoans, filteredReservations };
   };
+
+  // RF34/RF35 - listas derivadas, já filtradas pelo período escolhido
+  const emAtraso = getFilteredData().filteredLoans.filter(
+    (loan: any) =>
+      loan.status === 'atrasado' ||
+      (loan.is_overdue && loan.status !== 'concluido' && loan.status !== 'cancelado')
+  );
+
+  const devolvidos = getFilteredData().filteredLoans.filter(
+    (loan: any) => loan.status === 'concluido'
+  );
 
   return (
     <div className="space-y-6">
@@ -417,6 +469,8 @@ export const Relatorios = () => {
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="emprestimos">Empréstimos</TabsTrigger>
           <TabsTrigger value="equipamentos">Equipamentos</TabsTrigger>
+          <TabsTrigger value="atrasos">Atrasos</TabsTrigger>
+          <TabsTrigger value="devolucoes">Devoluções</TabsTrigger>
           <TabsTrigger value="reservas">Reservas</TabsTrigger>
         </TabsList>
 
@@ -636,6 +690,163 @@ export const Relatorios = () => {
                         </TableCell>
                         <TableCell>{formatDate(equipment.acquisitionDate || equipment.acquisition_date)}</TableCell>
                         <TableCell>{equipment.location}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* RF34 - Relatório de atrasos: empréstimos não devolvidos */}
+        <TabsContent value="atrasos">
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle>Relatório de Atrasos</CardTitle>
+                <CardDescription>
+                  Empréstimos cuja data prevista de devolução já passou e que continuam por concluir
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => exportarCSV(
+                  'relatorio_atrasos',
+                  ['ID', 'Utilizador', 'Equipamento', 'Data Prevista', 'Dias em Atraso', 'Finalidade'],
+                  emAtraso.map((loan: any) => [
+                    loan.id,
+                    loan.userName || loan.user_name,
+                    loan.equipmentName || loan.equipment_name,
+                    formatDate(loan.expected_return_date || loan.expectedReturnDate),
+                    diasEmAtraso(loan),
+                    (loan.purpose || '').replace(/\n|\r/g, ' '),
+                  ])
+                )}
+              >
+                <Download className="w-4 h-4 mr-2" /> Exportar CSV
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Utilizador</TableHead>
+                    <TableHead>Equipamento</TableHead>
+                    <TableHead>Data Prevista</TableHead>
+                    <TableHead>Dias em Atraso</TableHead>
+                    <TableHead>Finalidade</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                        <span>A carregar...</span>
+                      </TableCell>
+                    </TableRow>
+                  ) : emAtraso.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        Nenhum empréstimo em atraso no período selecionado.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    emAtraso.map((loan: any) => (
+                      <TableRow key={loan.id}>
+                        <TableCell className="font-mono">#{loan.id}</TableCell>
+                        <TableCell>{loan.userName || loan.user_name}</TableCell>
+                        <TableCell>{loan.equipmentName || loan.equipment_name}</TableCell>
+                        <TableCell>{formatDate(loan.expected_return_date || loan.expectedReturnDate)}</TableCell>
+                        <TableCell>
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-destructive text-destructive-foreground">
+                            {diasEmAtraso(loan)} dia(s)
+                          </span>
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">{loan.purpose}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* RF35 - Relatório de devoluções */}
+        <TabsContent value="devolucoes">
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle>Relatório de Devoluções</CardTitle>
+                <CardDescription>
+                  Equipamentos já devolvidos, com o estado físico registado pelo técnico na recepção
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => exportarCSV(
+                  'relatorio_devolucoes',
+                  ['ID', 'Utilizador', 'Equipamento', 'Data Prevista', 'Data de Devolução', 'Estado do Equipamento'],
+                  devolvidos.map((loan: any) => [
+                    loan.id,
+                    loan.userName || loan.user_name,
+                    loan.equipmentName || loan.equipment_name,
+                    formatDate(loan.expected_return_date || loan.expectedReturnDate),
+                    formatDate(loan.actual_return_date || loan.actualReturnDate),
+                    estadoDevolucaoLabel(loan.estado_devolucao),
+                  ])
+                )}
+              >
+                <Download className="w-4 h-4 mr-2" /> Exportar CSV
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Utilizador</TableHead>
+                    <TableHead>Equipamento</TableHead>
+                    <TableHead>Data Prevista</TableHead>
+                    <TableHead>Devolvido em</TableHead>
+                    <TableHead>Estado do Equipamento</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                        <span>A carregar...</span>
+                      </TableCell>
+                    </TableRow>
+                  ) : devolvidos.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        Nenhuma devolução registada no período selecionado.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    devolvidos.map((loan: any) => (
+                      <TableRow key={loan.id}>
+                        <TableCell className="font-mono">#{loan.id}</TableCell>
+                        <TableCell>{loan.userName || loan.user_name}</TableCell>
+                        <TableCell>{loan.equipmentName || loan.equipment_name}</TableCell>
+                        <TableCell>{formatDate(loan.expected_return_date || loan.expectedReturnDate)}</TableCell>
+                        <TableCell>{formatDate(loan.actual_return_date || loan.actualReturnDate)}</TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            loan.estado_devolucao === 'disponivel' ? 'bg-success text-success-foreground' :
+                            loan.estado_devolucao === 'manutencao' ? 'bg-warning text-warning-foreground' :
+                            loan.estado_devolucao === 'danificado' ? 'bg-destructive text-destructive-foreground' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {estadoDevolucaoLabel(loan.estado_devolucao)}
+                          </span>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -18,7 +19,11 @@ import {
   Clock,
   Loader2,
   FileText,
-  CheckSquare
+  CheckSquare,
+  Paperclip,
+  PackagePlus,
+  QrCode,
+  Trash2
 } from 'lucide-react';
 import { LoanRequest, LoanRequestStatus, Equipment } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -26,8 +31,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { loanRequestsAPI, equipmentAPI, packagesAPI } from '@/lib/api';
 
 const statusOptions: { value: LoanRequestStatus; label: string; color: string }[] = [
-  { value: 'pendente', label: 'Pendente', color: 'bg-warning text-warning-foreground' },
-  { value: 'autorizado', label: 'Autorizado', color: 'bg-success text-success-foreground' },
+  { value: 'pendente', label: 'Em análise', color: 'bg-warning text-warning-foreground' },
+  // RF18: aprovada = pronta para levantamento (nomenclatura do relatorio)
+  { value: 'autorizado', label: 'Em levantamento', color: 'bg-success text-success-foreground' },
   { value: 'rejeitado', label: 'Rejeitado', color: 'bg-destructive text-destructive-foreground' }
 ];
 
@@ -43,6 +49,14 @@ export const Solicitacoes = () => {
   const [showConfirmPickupDialog, setShowConfirmPickupDialog] = useState(false);
   const [approvalMotivo, setApprovalMotivo] = useState('');
   const [rejectionMotivo, setRejectionMotivo] = useState('');
+  // RF17 - documento validado pela Reitoria, anexado ao aprovar/rejeitar
+  const [decisionDoc, setDecisionDoc] = useState<File | null>(null);
+  // RF30 - atribuicao de equipamentos a uma solicitacao autorizada
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<any>(null);
+  const [assignSelected, setAssignSelected] = useState<number[]>([]);
+  const [assignQr, setAssignQr] = useState('');
+  const [assignBusy, setAssignBusy] = useState(false);
   const [pickupNotes, setPickupNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -101,6 +115,12 @@ export const Solicitacoes = () => {
     return user?.role && ['admin', 'tecnico', 'coordenador'].includes(user.role);
   };
 
+  // RF30 - so admin e tecnico atribuem equipamentos
+  const canAssign = () => user?.role === 'admin' || user?.role === 'tecnico';
+
+  const emFalta = (r: any) =>
+    typeof r?.equipamentos_em_falta === 'number' ? r.equipamentos_em_falta : 0;
+
   const canConfirmPickup = () => {
     return user?.role && ['admin', 'tecnico', 'secretario', 'coordenador'].includes(user.role);
   };
@@ -137,6 +157,30 @@ export const Solicitacoes = () => {
   };
 
   const getUserName = (r: any) => r.user_name || r.userName || r.user?.name || '-';
+
+  // RF17/RN02 - solicitacao especial (por quantidade) so avanca com o despacho
+  // da Reitoria anexado; nas normais o documento e opcional.
+  const isSpecial = (r: any) => !!(r?.is_special || (r?.quantity && r.quantity > 0));
+  const getDocUrl = (r: any) => r?.documento_url || null;
+  const hasDoc = (r: any) => !!(r?.documento_url || r?.tem_documento);
+
+  const renderDocCell = (r: any) => (
+    <TableCell>
+      {hasDoc(r) && getDocUrl(r) ? (
+        <a
+          href={getDocUrl(r)}
+          target="_blank"
+          rel="noreferrer"
+          title={r.documento_nome || 'Documento validado pela Reitoria'}
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
+        >
+          <Paperclip className="w-3 h-3" /> Ver
+        </a>
+      ) : (
+        <span className="text-xs text-muted-foreground">—</span>
+      )}
+    </TableCell>
+  );
   const getItemLabel = (r: any) => {
     if (r.quantity && r.quantity > 0) return `${r.quantity} equipamentos`;
     if (r.pacote_detail) return `Pacote: ${r.pacote_detail.name}`;
@@ -228,23 +272,38 @@ export const Solicitacoes = () => {
   const handleApprove = async () => {
     if (!selectedRequest) return;
 
+    if (isSpecial(selectedRequest) && !decisionDoc && !hasDoc(selectedRequest)) {
+      toast({
+        title: "Documento obrigatório",
+        description: "Solicitação especial: anexe o documento validado pela Reitoria antes de aprovar.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await loanRequestsAPI.aprovar(selectedRequest.id, approvalMotivo);
-      
+      const resposta: any = await loanRequestsAPI.aprovar(
+        selectedRequest.id, approvalMotivo, decisionDoc
+      );
+      const atualizada = resposta?.loan_request;
+
       setRequests(prev => prev.map(r => 
         r.id === selectedRequest.id 
-          ? { ...r, status: 'autorizado' as LoanRequestStatus }
+          ? { ...r, ...(atualizada || {}), status: 'autorizado' as LoanRequestStatus }
           : r
       ));
       
       toast({
         title: "Solicitação aprovada!",
-        description: "A solicitação foi aprovada com sucesso.",
+        description: decisionDoc
+          ? "Aprovada e documento validado anexado."
+          : "A solicitação foi aprovada com sucesso.",
       });
       
       setShowApprovalDialog(false);
       setApprovalMotivo('');
+      setDecisionDoc(null);
       setSelectedRequest(null);
       
     } catch (error) {
@@ -271,22 +330,28 @@ export const Solicitacoes = () => {
 
     setSubmitting(true);
     try {
-      await loanRequestsAPI.rejeitar(selectedRequest.id, rejectionMotivo);
-      
+      const resposta: any = await loanRequestsAPI.rejeitar(
+        selectedRequest.id, rejectionMotivo, decisionDoc
+      );
+      const atualizada = resposta?.loan_request;
+
       setRequests(prev => prev.map(r => 
         r.id === selectedRequest.id 
-          ? { ...r, status: 'rejeitado' as LoanRequestStatus }
+          ? { ...r, ...(atualizada || {}), status: 'rejeitado' as LoanRequestStatus }
           : r
       ));
       
       toast({
         title: "Solicitação rejeitada",
-        description: "A solicitação foi rejeitada.",
+        description: decisionDoc
+          ? "Rejeitada e documento validado anexado."
+          : "A solicitação foi rejeitada.",
         variant: "destructive"
       });
       
       setShowRejectionDialog(false);
       setRejectionMotivo('');
+      setDecisionDoc(null);
       setSelectedRequest(null);
       
     } catch (error) {
@@ -298,6 +363,127 @@ export const Solicitacoes = () => {
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ---------------- RF30: atribuir equipamentos ----------------
+
+  const refreshAssignTarget = async (id: string) => {
+    const detalhe: any = await loanRequestsAPI.get(id);
+    setAssignTarget(detalhe);
+    setRequests(prev => prev.map(r => (r.id === id ? { ...r, ...detalhe } : r)));
+    return detalhe;
+  };
+
+  const openAssignDialog = async (request: any) => {
+    setAssignBusy(true);
+    setAssignSelected([]);
+    setAssignQr('');
+    setAssignOpen(true);
+    try {
+      await refreshAssignTarget(request.id);
+      const disponiveis = await equipmentAPI.available();
+      setAvailableEquipments(disponiveis.results || disponiveis);
+    } catch (error) {
+      console.error('Erro ao abrir atribuição:', error);
+      toast({
+        title: "Erro ao carregar",
+        description: "Não foi possível carregar os equipamentos disponíveis.",
+        variant: "destructive"
+      });
+      setAssignOpen(false);
+    } finally {
+      setAssignBusy(false);
+    }
+  };
+
+  const toggleAssignSelected = (equipmentId: number) => {
+    setAssignSelected(prev =>
+      prev.includes(equipmentId)
+        ? prev.filter(id => id !== equipmentId)
+        : [...prev, equipmentId]
+    );
+  };
+
+  const handleAssign = async () => {
+    if (!assignTarget || assignSelected.length === 0) return;
+
+    setAssignBusy(true);
+    try {
+      const resposta: any = await loanRequestsAPI.atribuirEquipamentos(assignTarget.id, assignSelected);
+      setAssignSelected([]);
+      await refreshAssignTarget(assignTarget.id);
+      const disponiveis = await equipmentAPI.available();
+      setAvailableEquipments(disponiveis.results || disponiveis);
+      toast({ title: "Equipamentos atribuídos", description: resposta?.message });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atribuir",
+        description: error?.message || "Não foi possível atribuir os equipamentos.",
+        variant: "destructive"
+      });
+    } finally {
+      setAssignBusy(false);
+    }
+  };
+
+  const handleAssignQr = async (confirmarDisponibilidade = false) => {
+    if (!assignTarget || !assignQr.trim()) return;
+
+    setAssignBusy(true);
+    try {
+      const resposta: any = await loanRequestsAPI.atribuirPorQrCode(
+        assignTarget.id, assignQr.trim(), confirmarDisponibilidade
+      );
+      setAssignQr('');
+      await refreshAssignTarget(assignTarget.id);
+      const disponiveis = await equipmentAPI.available();
+      setAvailableEquipments(disponiveis.results || disponiveis);
+      toast({ title: "Equipamento atribuído", description: resposta?.message });
+    } catch (error: any) {
+      // RN05: o equipamento esta marcado como indisponivel mas o tecnico
+      // tem-no em maos e pode confirmar que esta disponivel
+      if (error?.status === 409 && error?.data?.requer_confirmacao) {
+        const equipamento = error.data.equipamento;
+        const confirmar = confirm(
+          `${equipamento?.nome} está como "${equipamento?.status_display}".\n\n` +
+          `Tem o equipamento consigo e confirma que está disponível?`
+        );
+        if (confirmar) {
+          setAssignBusy(false);
+          await handleAssignQr(true);
+          return;
+        }
+      } else {
+        toast({
+          title: "Erro na leitura",
+          description: error?.message || "Não foi possível atribuir por QR Code.",
+          variant: "destructive"
+        });
+      }
+    } finally {
+      setAssignBusy(false);
+    }
+  };
+
+  const handleRemoverAtribuido = async (equipmentId: number) => {
+    if (!assignTarget) return;
+
+    setAssignBusy(true);
+    try {
+      await loanRequestsAPI.removerEquipamento(assignTarget.id, equipmentId);
+      await refreshAssignTarget(assignTarget.id);
+      const disponiveis = await equipmentAPI.available();
+      setAvailableEquipments(disponiveis.results || disponiveis);
+      toast({ title: "Equipamento removido da solicitação" });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao remover",
+        description: error?.message || "Não foi possível remover o equipamento.",
+        variant: "destructive"
+      });
+    } finally {
+      setAssignBusy(false);
     }
   };
 
@@ -643,6 +829,7 @@ export const Solicitacoes = () => {
                       <TableHead>Data Prevista</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>QR</TableHead>
+                      <TableHead>Documento</TableHead>
                       <TableHead>Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -672,17 +859,18 @@ export const Solicitacoes = () => {
                             </a>
                           ) : <span className="text-xs text-muted-foreground">—</span>}
                         </TableCell>
+                        {renderDocCell(request)}
                         <TableCell>
                           <div className="flex gap-2 flex-wrap">
                             {canApprove() && (
                               <>
                                 <Button variant="outline" size="sm"
-                                  onClick={() => { setSelectedRequest(request); setShowApprovalDialog(true); }}
+                                  onClick={() => { setSelectedRequest(request); setDecisionDoc(null); setShowApprovalDialog(true); }}
                                   className="bg-success text-success-foreground hover:bg-success/90">
                                   <CheckCircle className="w-4 h-4 mr-1" /> Aprovar
                                 </Button>
                                 <Button variant="outline" size="sm"
-                                  onClick={() => { setSelectedRequest(request); setShowRejectionDialog(true); }}
+                                  onClick={() => { setSelectedRequest(request); setDecisionDoc(null); setShowRejectionDialog(true); }}
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                   <XCircle className="w-4 h-4 mr-1" /> Rejeitar
                                 </Button>
@@ -725,6 +913,7 @@ export const Solicitacoes = () => {
                       <TableHead>Técnico</TableHead>
                       <TableHead>Levantamento</TableHead>
                       <TableHead>QR</TableHead>
+                      <TableHead>Documento</TableHead>
                       <TableHead>Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -752,8 +941,24 @@ export const Solicitacoes = () => {
                             </a>
                           ) : <span className="text-xs text-muted-foreground">—</span>}
                         </TableCell>
+                        {renderDocCell(request)}
                         <TableCell>
                           <div className="flex gap-2 flex-wrap">
+                            {canAssign() && emFalta(request) > 0 && (
+                              <Button variant="outline" size="sm"
+                                onClick={() => openAssignDialog(request)}
+                                className="bg-gold text-gold-foreground hover:bg-gold/90">
+                                <PackagePlus className="w-4 h-4 mr-1" />
+                                Atribuir ({emFalta(request)})
+                              </Button>
+                            )}
+                            {canAssign() && (request as any).is_special && emFalta(request) === 0 && (
+                              <Button variant="outline" size="sm"
+                                onClick={() => openAssignDialog(request)}>
+                                <PackagePlus className="w-4 h-4 mr-1" />
+                                Equipamentos
+                              </Button>
+                            )}
                             {canConfirmPickup() && !request.confirmadoPeloTecnico && (
                               <Button variant="outline" size="sm"
                                 onClick={() => { setSelectedRequest(request); setShowConfirmPickupDialog(true); }}>
@@ -803,6 +1008,7 @@ export const Solicitacoes = () => {
                     <TableHead>Data Prevista</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>QR</TableHead>
+                    <TableHead>Documento</TableHead>
                     <TableHead>Motivo</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -823,8 +1029,11 @@ export const Solicitacoes = () => {
                           </a>
                         ) : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
+                      {renderDocCell(request)}
                       <TableCell>
-                        <p className="max-w-xs truncate">{request.motivoDecisao || '-'}</p>
+                        <p className="max-w-xs truncate">
+                          {(request as any).motivo_decisao || request.motivoDecisao || '-'}
+                        </p>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -834,6 +1043,152 @@ export const Solicitacoes = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* RF30 - Atribuir equipamentos ao empréstimo */}
+      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Atribuir equipamentos ao empréstimo</DialogTitle>
+            <DialogDescription>
+              {assignTarget ? (
+                <>
+                  Solicitação de <strong>{getUserName(assignTarget)}</strong> — {assignTarget.purpose}
+                </>
+              ) : 'A carregar...'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {assignTarget && (
+            <div className="space-y-6">
+              {/* Contagem pedida vs atribuída */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Pedidos</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {assignTarget.quantity || assignTarget.equipamentos_atribuidos || 0}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Atribuídos</p>
+                  <p className="text-2xl font-bold text-success">
+                    {assignTarget.equipamentos_atribuidos ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Em falta</p>
+                  <p className={`text-2xl font-bold ${emFalta(assignTarget) > 0 ? 'text-destructive' : 'text-success'}`}>
+                    {emFalta(assignTarget)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Já atribuídos */}
+              {(assignTarget.equipments_detail || []).length > 0 && (
+                <div className="space-y-2">
+                  <Label>Já atribuídos</Label>
+                  <div className="space-y-2">
+                    {(assignTarget.equipments_detail || []).map((eq: any) => (
+                      <div key={eq.id}
+                        className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 py-2">
+                        <span className="text-sm">
+                          {eq.full_name || `${eq.brand || ''} ${eq.model || ''}`.trim() || 'Equipamento'}
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {eq.serial_number}
+                          </span>
+                        </span>
+                        <Button variant="ghost" size="sm" disabled={assignBusy}
+                          onClick={() => handleRemoverAtribuido(eq.id)}
+                          className="text-destructive hover:text-destructive">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Atribuição por QR Code (fluxo alternativo do RF30) */}
+              <div className="space-y-2">
+                <Label htmlFor="assignQr" className="flex items-center gap-2">
+                  <QrCode className="w-4 h-4" /> Atribuir por QR Code
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="assignQr"
+                    value={assignQr}
+                    onChange={(e) => setAssignQr(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAssignQr(); } }}
+                    placeholder="Leia ou cole o código do equipamento"
+                    disabled={assignBusy || emFalta(assignTarget) === 0}
+                  />
+                  <Button type="button" variant="outline"
+                    onClick={() => handleAssignQr()}
+                    disabled={assignBusy || !assignQr.trim() || emFalta(assignTarget) === 0}>
+                    Adicionar
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Se o equipamento estiver marcado como indisponível, o sistema pergunta se confirma
+                  a disponibilidade antes de o associar.
+                </p>
+              </div>
+
+              {/* Selecção manual */}
+              <div className="space-y-2">
+                <Label>Equipamentos disponíveis</Label>
+                {availableEquipments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center border rounded-lg">
+                    Não há equipamentos disponíveis de momento.
+                  </p>
+                ) : (
+                  <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border p-2">
+                    {availableEquipments.map((eq: any) => {
+                      const escolhido = assignSelected.includes(Number(eq.id));
+                      const limite = emFalta(assignTarget);
+                      const bloqueado = !escolhido && limite > 0 && assignSelected.length >= limite;
+                      return (
+                        <label key={eq.id}
+                          className={`flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors ${
+                            escolhido ? 'bg-primary/10' : 'hover:bg-muted'
+                          } ${bloqueado ? 'opacity-40' : ''}`}>
+                          <Checkbox
+                            checked={escolhido}
+                            disabled={assignBusy || bloqueado}
+                            onCheckedChange={() => toggleAssignSelected(Number(eq.id))}
+                          />
+                          <span className="flex-1">
+                            {eq.full_name || `${eq.brand || ''} ${eq.model || ''}`.trim() || 'Equipamento'}
+                            <span className="ml-2 text-xs text-muted-foreground">{eq.serial_number}</span>
+                          </span>
+                          <Badge variant="outline" className="text-xs">{eq.type}</Badge>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {emFalta(assignTarget) > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Pode seleccionar no máximo {emFalta(assignTarget)} equipamento(s).
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignOpen(false)} disabled={assignBusy}>
+              Fechar
+            </Button>
+            <Button onClick={handleAssign} disabled={assignBusy || assignSelected.length === 0}>
+              {assignBusy ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />A atribuir...</>
+              ) : (
+                `Atribuir ${assignSelected.length || ''}`.trim()
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Approval Dialog */}
       <AlertDialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
@@ -855,10 +1210,44 @@ export const Solicitacoes = () => {
             />
           </div>
 
+          {/* RF17 - despacho validado pela Reitoria */}
+          <div className="space-y-2">
+            <Label htmlFor="approvalDoc" className="flex items-center gap-2">
+              <Paperclip className="w-4 h-4" />
+              Documento validado pela Reitoria
+              {selectedRequest && isSpecial(selectedRequest) && (
+                <span className="text-destructive">*</span>
+              )}
+            </Label>
+            <Input
+              id="approvalDoc"
+              type="file"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              onChange={(e) => setDecisionDoc(e.target.files?.[0] || null)}
+              disabled={submitting}
+            />
+            <p className="text-xs text-muted-foreground">
+              PDF, Word ou imagem, até 10 MB.
+              {selectedRequest && isSpecial(selectedRequest)
+                ? ' Obrigatório nas solicitações especiais (por quantidade).'
+                : ' Opcional nas solicitações normais.'}
+            </p>
+            {selectedRequest && hasDoc(selectedRequest) && getDocUrl(selectedRequest) && (
+              <a
+                href={getDocUrl(selectedRequest)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
+              >
+                <FileText className="w-3 h-3" /> Ver documento já anexado
+              </a>
+            )}
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={handleApprove}
+              onClick={(e) => { e.preventDefault(); handleApprove(); }}
               disabled={submitting}
               className="bg-success hover:bg-success/90"
             >
@@ -896,10 +1285,36 @@ export const Solicitacoes = () => {
             />
           </div>
 
+          {/* RF17 - despacho validado pela Reitoria que fundamenta a rejeicao */}
+          <div className="space-y-2">
+            <Label htmlFor="rejectionDoc" className="flex items-center gap-2">
+              <Paperclip className="w-4 h-4" />
+              Documento validado pela Reitoria (opcional)
+            </Label>
+            <Input
+              id="rejectionDoc"
+              type="file"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              onChange={(e) => setDecisionDoc(e.target.files?.[0] || null)}
+              disabled={submitting}
+            />
+            <p className="text-xs text-muted-foreground">PDF, Word ou imagem, até 10 MB.</p>
+            {selectedRequest && hasDoc(selectedRequest) && getDocUrl(selectedRequest) && (
+              <a
+                href={getDocUrl(selectedRequest)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
+              >
+                <FileText className="w-3 h-3" /> Ver documento já anexado
+              </a>
+            )}
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={submitting}>Cancelar</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={handleReject}
+              onClick={(e) => { e.preventDefault(); handleReject(); }}
               disabled={submitting || !rejectionMotivo}
               className="bg-destructive hover:bg-destructive/90"
             >

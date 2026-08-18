@@ -53,6 +53,11 @@ export const Emprestimos = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [confirmPickupNotes, setConfirmPickupNotes] = useState('');
+  // RF25 - devolucao com registo do estado fisico e anexo opcional
+  const [showReturnDialog, setShowReturnDialog] = useState(false);
+  const [returnEstado, setReturnEstado] = useState('disponivel');
+  const [returnNotes, setReturnNotes] = useState('');
+  const [returnDoc, setReturnDoc] = useState<File | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -334,7 +339,7 @@ export const Emprestimos = () => {
     }
   };
 
-  const handleReturn = async (loan: Loan) => {
+  const handleReturn = (loan: Loan) => {
     if (!canReturnLoan(loan)) {
       toast({
         title: "Acesso negado",
@@ -344,14 +349,31 @@ export const Emprestimos = () => {
       return;
     }
 
+    // RF25 - a devolucao passa pelo registo do estado fisico do equipamento
+    setSelectedLoan(loan);
+    setReturnEstado('disponivel');
+    setReturnNotes('');
+    setReturnDoc(null);
+    setShowReturnDialog(true);
+  };
+
+  const confirmarDevolucao = async () => {
+    if (!selectedLoan) return;
+
+    setSubmitting(true);
     try {
-      await loansAPI.returnEquipment(loan.id, {
-        return_date: new Date().toISOString().split('T')[0],
-        notes: 'Devolvido via sistema'
-      });
-      
+      await loansAPI.returnEquipment(
+        selectedLoan.id,
+        {
+          return_date: new Date().toISOString().split('T')[0],
+          notes: returnNotes || 'Devolvido via sistema',
+          estado_devolucao: returnEstado,
+        },
+        returnDoc
+      );
+
       setLoans(prev => prev.map(l => 
-        l.id === loan.id 
+        l.id === selectedLoan.id 
           ? { 
               ...l, 
               status: 'concluido' as LoanStatus,
@@ -362,8 +384,15 @@ export const Emprestimos = () => {
       
       toast({
         title: "Devolução confirmada!",
-        description: "O equipamento foi devolvido com sucesso.",
+        description: returnEstado === 'disponivel'
+          ? "O equipamento voltou ao inventário como disponível."
+          : returnEstado === 'manutencao'
+            ? "O equipamento foi enviado para manutenção."
+            : "O equipamento foi marcado como danificado e está indisponível.",
       });
+
+      setShowReturnDialog(false);
+      setSelectedLoan(null);
       
       // Recarrega equipamentos disponíveis
       const equipmentData = await equipmentAPI.available();
@@ -376,6 +405,8 @@ export const Emprestimos = () => {
         description: "Não foi possível processar a devolução.",
         variant: "destructive"
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1164,6 +1195,76 @@ export const Emprestimos = () => {
             <Button onClick={() => window.print()}>
               <Printer className="w-4 h-4 mr-2" />
               Imprimir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* RF25 - Devolução: estado físico + observações + anexo */}
+      <Dialog open={showReturnDialog} onOpenChange={setShowReturnDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Confirmar devolução</DialogTitle>
+            <DialogDescription>
+              {selectedLoan
+                ? `${(selectedLoan as any).equipment_name || selectedLoan.equipmentName} — ${(selectedLoan as any).user_name || selectedLoan.userName}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="returnEstado">Estado físico verificado *</Label>
+              <Select value={returnEstado} onValueChange={setReturnEstado}>
+                <SelectTrigger id="returnEstado">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="disponivel">Bom estado — volta a disponível</SelectItem>
+                  <SelectItem value="manutencao">Necessita manutenção</SelectItem>
+                  <SelectItem value="danificado">Danificado — fica indisponível</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                A inspecção é feita pelo técnico; o sistema regista o resultado e actualiza
+                automaticamente a disponibilidade do equipamento.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="returnNotes">Observações sobre o estado</Label>
+              <Textarea
+                id="returnNotes"
+                value={returnNotes}
+                onChange={(e) => setReturnNotes(e.target.value)}
+                placeholder="Riscos, peças em falta, avarias detectadas..."
+                disabled={submitting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="returnDoc">Imagem ou relatório (opcional)</Label>
+              <Input
+                id="returnDoc"
+                type="file"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                onChange={(e) => setReturnDoc(e.target.files?.[0] || null)}
+                disabled={submitting}
+              />
+              <p className="text-xs text-muted-foreground">PDF, Word ou imagem, até 10 MB.</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReturnDialog(false)} disabled={submitting}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmarDevolucao} disabled={submitting}>
+              {submitting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />A registar...</>
+              ) : (
+                'Confirmar devolução'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

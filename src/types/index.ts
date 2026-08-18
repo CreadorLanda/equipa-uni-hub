@@ -127,6 +127,13 @@ export interface LoanRequest {
   dataPrevistaDevolucao?: string;
   qrcode_hash?: string;
 
+  // RF17 - documento validado pela Reitoria (nomes tal como vem da API)
+  tem_documento?: boolean;
+  documento_url?: string | null;
+  documento_nome?: string | null;
+  documento_anexado_em?: string | null;
+  documento_anexado_por_name?: string | null;
+
   createdAt: string;
   updatedAt: string;
 }

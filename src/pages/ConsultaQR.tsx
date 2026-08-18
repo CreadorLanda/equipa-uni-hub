@@ -20,7 +20,7 @@ const statusConfig: Record<string, { label: string; color: string }> = {
 
 const reqStatusConfig: Record<string, { label: string; color: string }> = {
   pendente: { label: "Pendente", color: "bg-warning text-warning-foreground" },
-  autorizado: { label: "Autorizado", color: "bg-info text-info-foreground" },
+  autorizado: { label: "Em levantamento", color: "bg-info text-info-foreground" },
   rejeitado: { label: "Rejeitado", color: "bg-destructive text-destructive-foreground" },
   cancelado: { label: "Cancelado", color: "bg-muted text-muted-foreground" },
 };

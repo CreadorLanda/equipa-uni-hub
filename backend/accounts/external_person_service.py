@@ -63,6 +63,23 @@ class ExternalPersonService:
             logger.error(f"Erro ao pesquisar no sistema externo: {e}")
             return []
 
+    def list_persons(self) -> List[Dict]:
+        """
+        RF01 - Devolve todas as pessoas do sistema externo, para a
+        sincronizacao em massa. Sem integracao configurada, devolve os
+        dados simulados, para o fluxo poder ser demonstrado e testado.
+        """
+        if not self._is_configured():
+            return list(self._mock_directory().values())
+        try:
+            resultado = self._api_call('/pessoas')
+            if isinstance(resultado, dict):
+                return resultado.get('results', [])
+            return resultado or []
+        except Exception as e:
+            logger.error(f"Erro ao listar pessoas do sistema externo: {e}")
+            return []
+
     def validate_person(self, email: str) -> bool:
         """
         Valida se uma pessoa existe no sistema externo.
@@ -89,7 +106,11 @@ class ExternalPersonService:
         """
         Mock para desenvolvimento - retorna dados simulados.
         """
-        mock_data = {
+        return self._mock_directory().get(email)
+
+    def _mock_directory(self) -> Dict[str, Dict]:
+        """Directorio simulado do Sistema de Gestao de Pessoas."""
+        return {
             'admin@universidade.ao': {
                 'name': 'Admin DTI',
                 'email': 'admin@universidade.ao',
@@ -119,7 +140,6 @@ class ExternalPersonService:
                 'external_id': 'EXT-004',
             },
         }
-        return mock_data.get(email)
 
 
 # Singleton para uso nos views

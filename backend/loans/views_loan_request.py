@@ -8,11 +8,15 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
 from .models import LoanRequest, Loan
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .serializers import (
     LoanRequestSerializer, LoanRequestListSerializer,
     LoanRequestApprovalSerializer, LoanRequestConfirmPickupSerializer,
-    LoanRequestCancelSerializer
+    LoanRequestCancelSerializer, LoanRequestDocumentSerializer,
+    LoanRequestAssignSerializer, LoanRequestAssignQRSerializer
 )
+from equipment.models import Equipment
+from django.core.files.base import ContentFile
 from notifications.models import Notification
 from .services import LoanNotificationService
 from .pdf_service import generate_loan_request_pdf
@@ -28,6 +32,8 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
     ).prefetch_related('equipments').all()
     serializer_class = LoanRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
+    # multipart e necessario para anexar o documento validado (RF17)
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'user', 'tecnico_responsavel']
     search_fields = ['user__name', 'purpose']
@@ -136,10 +142,10 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
         
         page = self.paginate_queryset(pending_requests)
         if page is not None:
-            serializer = LoanRequestListSerializer(page, many=True)
+            serializer = LoanRequestListSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
         
-        serializer = LoanRequestListSerializer(pending_requests, many=True)
+        serializer = LoanRequestListSerializer(pending_requests, many=True, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
@@ -151,10 +157,10 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
         
         page = self.paginate_queryset(authorized_requests)
         if page is not None:
-            serializer = LoanRequestListSerializer(page, many=True)
+            serializer = LoanRequestListSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
         
-        serializer = LoanRequestListSerializer(authorized_requests, many=True)
+        serializer = LoanRequestListSerializer(authorized_requests, many=True, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=True, methods=['post'])
@@ -184,6 +190,17 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
         
         if serializer.is_valid():
             motivo = serializer.validated_data.get('motivo', 'Solicitação aprovada.')
+
+            # RF17 - anexa o despacho da Reitoria, se enviado
+            documento = serializer.validated_data.get('documento')
+            if documento:
+                loan_request.anexar_documento(documento, request.user)
+            elif loan_request.is_special and not loan_request.tem_documento:
+                return Response(
+                    {'error': 'Solicitação especial: anexe o documento validado pela Reitoria antes de aprovar.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             loan_request.aprovar(request.user, motivo)
             
             # Envia notificação de aprovação
@@ -195,7 +212,9 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
             return Response(
                 {
                     'message': 'Solicitação aprovada com sucesso.',
-                    'loan_request': LoanRequestSerializer(loan_request).data
+                    'loan_request': LoanRequestSerializer(
+                        loan_request, context={'request': request}
+                    ).data
                 },
                 status=status.HTTP_200_OK
             )
@@ -229,6 +248,12 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
         
         if serializer.is_valid():
             motivo = serializer.validated_data.get('motivo')
+
+            # RF17 - o despacho da Reitoria tambem fundamenta a rejeicao
+            documento = serializer.validated_data.get('documento')
+            if documento:
+                loan_request.anexar_documento(documento, request.user)
+
             loan_request.rejeitar(request.user, motivo)
             
             # Envia notificação de rejeição
@@ -240,13 +265,212 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
             return Response(
                 {
                     'message': 'Solicitação rejeitada.',
-                    'loan_request': LoanRequestSerializer(loan_request).data
+                    'loan_request': LoanRequestSerializer(
+                        loan_request, context={'request': request}
+                    ).data
                 },
                 status=status.HTTP_200_OK
             )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+    @action(detail=True, methods=['post'], url_path='anexar-documento')
+    def anexar_documento(self, request, pk=None):
+        """
+        RF17 - Anexa o documento validado pela Reitoria a uma solicitacao
+        ainda pendente, antes de aprovar ou rejeitar.
+        """
+        loan_request = self.get_object()
+
+        if request.user.role not in ['admin', 'tecnico', 'coordenador']:
+            return Response(
+                {'error': 'Apenas admin, técnicos ou coordenadores podem anexar documentos.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if loan_request.status != 'pendente':
+            return Response(
+                {'error': 'Só é possível anexar documentos a solicitações pendentes.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = LoanRequestDocumentSerializer(data=request.data)
+        if serializer.is_valid():
+            loan_request.anexar_documento(serializer.validated_data['documento'], request.user)
+            return Response(
+                {
+                    'message': 'Documento anexado com sucesso.',
+                    'loan_request': LoanRequestSerializer(
+                        loan_request, context={'request': request}
+                    ).data
+                },
+                status=status.HTTP_200_OK
+            )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='atribuir-equipamentos')
+    def atribuir_equipamentos(self, request, pk=None):
+        """
+        RF30 - Associa equipamentos disponiveis a uma solicitacao autorizada.
+        Os equipamentos passam a Reservado ate a confirmacao do levantamento.
+        """
+        loan_request = self.get_object()
+
+        erro = self._validar_atribuicao(request, loan_request)
+        if erro:
+            return erro
+
+        serializer = LoanRequestAssignSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        ids = serializer.validated_data['equipment_ids']
+        equipamentos = list(Equipment.objects.filter(id__in=ids))
+
+        em_falta = set(ids) - {e.id for e in equipamentos}
+        if em_falta:
+            return Response(
+                {'error': f'Equipamentos inexistentes: {sorted(em_falta)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # RN02 - so equipamentos disponiveis podem ser atribuidos
+        indisponiveis = [str(e) for e in equipamentos if e.status != 'disponivel']
+        if indisponiveis:
+            return Response(
+                {'error': 'Equipamentos indisponíveis: ' + ', '.join(indisponiveis)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # RN01 - nao atribuir mais do que a quantidade pedida
+        if loan_request.quantity:
+            disponivel_para_atribuir = loan_request.equipamentos_em_falta
+            if len(equipamentos) > disponivel_para_atribuir:
+                return Response(
+                    {'error': f'A solicitação só precisa de mais {disponivel_para_atribuir} equipamento(s).'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        loan_request.atribuir_equipamentos(equipamentos, request.user)
+
+        return Response({
+            'message': 'Equipamentos atribuídos com sucesso.'
+                       if loan_request.atribuicao_completa
+                       else f'Atribuídos. Faltam {loan_request.equipamentos_em_falta} equipamento(s).',
+            'loan_request': LoanRequestSerializer(loan_request, context={'request': request}).data,
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='atribuir-por-qrcode')
+    def atribuir_por_qrcode(self, request, pk=None):
+        """
+        RF30 (fluxo alternativo) - Atribuicao por leitura de QR Code.
+        """
+        loan_request = self.get_object()
+
+        erro = self._validar_atribuicao(request, loan_request)
+        if erro:
+            return erro
+
+        serializer = LoanRequestAssignQRSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        equipamento = Equipment.objects.filter(
+            qrcode_hash=serializer.validated_data['qrcode_hash']
+        ).first()
+
+        if not equipamento:
+            return Response(
+                {'error': 'Nenhum equipamento corresponde a este QR Code.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if loan_request.equipments.filter(id=equipamento.id).exists():
+            return Response(
+                {'error': f'{equipamento} já está atribuído a esta solicitação.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if loan_request.quantity and loan_request.equipamentos_em_falta == 0:
+            return Response(
+                {'error': 'A solicitação já tem todos os equipamentos atribuídos.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # RN04/RN05/RN06 - o sistema mostra o estado; se estiver indisponivel,
+        # o tecnico (que tem o equipamento em maos) pode confirmar a disponibilidade
+        if equipamento.status != 'disponivel':
+            if not serializer.validated_data.get('confirmar_disponibilidade'):
+                return Response({
+                    'error': f'{equipamento} está como "{equipamento.get_status_display()}".',
+                    'requer_confirmacao': True,
+                    'equipamento': {
+                        'id': equipamento.id,
+                        'nome': str(equipamento),
+                        'status': equipamento.status,
+                        'status_display': equipamento.get_status_display(),
+                    },
+                }, status=status.HTTP_409_CONFLICT)
+
+            equipamento.status = 'disponivel'
+            equipamento.save()
+
+        loan_request.atribuir_equipamentos([equipamento], request.user)
+
+        return Response({
+            'message': f'{equipamento} atribuído à solicitação.',
+            'equipamento': {'id': equipamento.id, 'nome': str(equipamento)},
+            'loan_request': LoanRequestSerializer(loan_request, context={'request': request}).data,
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='remover-equipamento')
+    def remover_equipamento(self, request, pk=None):
+        """
+        RF30 - Desfaz uma atribuicao enquanto o levantamento nao for confirmado.
+        """
+        loan_request = self.get_object()
+
+        erro = self._validar_atribuicao(request, loan_request)
+        if erro:
+            return erro
+
+        equipamento = Equipment.objects.filter(id=request.data.get('equipment_id')).first()
+        if not equipamento or not loan_request.equipments.filter(id=equipamento.id).exists():
+            return Response(
+                {'error': 'Equipamento não está atribuído a esta solicitação.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        loan_request.remover_equipamento(equipamento)
+
+        return Response({
+            'message': f'{equipamento} removido da solicitação.',
+            'loan_request': LoanRequestSerializer(loan_request, context={'request': request}).data,
+        }, status=status.HTTP_200_OK)
+
+    def _validar_atribuicao(self, request, loan_request):
+        """Pre-condicoes partilhadas pelas tres accoes de atribuicao (RF30)."""
+        if request.user.role not in ['admin', 'tecnico']:
+            return Response(
+                {'error': 'Apenas admin ou técnicos podem atribuir equipamentos.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if loan_request.status != 'autorizado':
+            return Response(
+                {'error': 'Só solicitações autorizadas podem receber equipamentos.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if loan_request.confirmado_pelo_tecnico and loan_request.confirmado_pelo_utente:
+            return Response(
+                {'error': 'O levantamento já foi confirmado; a atribuição não pode mudar.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return None
+
     @action(detail=True, methods=['post'])
     def confirmar_levantamento(self, request, pk=None):
         """
@@ -277,6 +501,15 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
         if loan_request.confirmado_pelo_tecnico:
             return Response(
                 {'error': 'O técnico já confirmou este levantamento.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # RF30 - numa solicitacao por quantidade os equipamentos tem de estar
+        # atribuidos antes do levantamento, senao nao ha nada para entregar
+        if not loan_request.atribuicao_completa:
+            return Response(
+                {'error': f'Faltam atribuir {loan_request.equipamentos_em_falta} equipamento(s) '
+                          f'a esta solicitação antes de confirmar o levantamento.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -376,8 +609,11 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
 
         for eq in equipments:
             try:
-                if not eq.can_be_borrowed():
-                    skipped.append({'equipment': str(eq), 'reason': 'indisponivel'})
+                # RF30: os equipamentos atribuidos ficam "reservado" para esta
+                # solicitacao, por isso `can_be_borrowed()` (que so aceita
+                # "disponivel") nao serve como criterio aqui
+                if eq.status not in ('disponivel', 'reservado'):
+                    skipped.append({'equipment': str(eq), 'reason': eq.get_status_display()})
                     continue
 
                 loan = Loan.objects.create(
@@ -394,9 +630,12 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
                 loan.confirmado_utente = loan_request.confirmado_pelo_utente
                 loan.data_confirmacao_utente = loan_request.data_confirmacao_utente
                 if loan_request.confirmado_pelo_tecnico and loan_request.confirmado_pelo_utente:
-                    loan.status = 'ativo'
                     loan.tecnico_entrega = loan_request.tecnico_responsavel
-                loan.save()
+                    loan.save()
+                    # marca o emprestimo como activo E o equipamento como emprestado
+                    loan._ativar_emprestimo()
+                else:
+                    loan.save()
                 created_loans.append(loan)
 
                 try:
@@ -405,6 +644,12 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
                     print(f"Erro ao notificar criação de empréstimo #{loan.id}: {notify_err}")
             except Exception as create_err:
                 skipped.append({'equipment': str(eq), 'reason': str(create_err)})
+
+        # RF24 - o sistema gera e arquiva o comprovativo digital do levantamento
+        try:
+            self._arquivar_comprovativo(loan_request)
+        except Exception as e:
+            print(f"Erro ao arquivar comprovativo de levantamento: {e}")
 
         try:
             self._send_pickup_confirmation_notification(loan_request)
@@ -452,20 +697,39 @@ class LoanRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
+    def _arquivar_comprovativo(self, loan_request):
+        """
+        RF24 - Gera o PDF do levantamento e guarda-o na solicitacao, para
+        ficar arquivado e nao apenas disponivel a pedido.
+        """
+        if loan_request.comprovativo_levantamento:
+            return
+
+        pdf = generate_loan_request_pdf(loan_request)
+        nome = f'comprovativo_levantamento_{loan_request.id}.pdf'
+        loan_request.comprovativo_levantamento.save(nome, ContentFile(pdf.read()), save=True)
+
     def _send_new_request_notification(self, loan_request):
         """
-        Envia notificação para coordenadores sobre nova solicitação
+        RF21 - Notifica quem trata das solicitações especiais: os técnicos
+        (destinatário indicado no relatório), o admin da DTI e, quando
+        existirem, os coordenadores que representam a Reitoria.
         """
         from accounts.models import User
-        
-        coordenadores = User.objects.filter(role='coordenador', is_active=True)
-        
-        for coordenador in coordenadores:
+
+        destinatarios = User.objects.filter(
+            role__in=['tecnico', 'admin', 'coordenador'], is_active=True
+        )
+
+        quantidade = loan_request.quantity or loan_request.equipments.count()
+
+        for destinatario in destinatarios:
             Notification.objects.create(
-                user=coordenador,
-                type='info',
-                title='Nova Solicitação de Empréstimo',
-                message=f'{loan_request.user_name} solicitou empréstimo de {loan_request.quantity} equipamentos. Aguarda aprovação da reitoria.',
+                user=destinatario,
+                type='warning' if loan_request.is_special else 'info',
+                title='Nova Solicitação Especial de Empréstimo'
+                      if loan_request.is_special else 'Nova Solicitação de Empréstimo',
+                message=f'{loan_request.user_name} solicitou empréstimo de {quantidade} equipamentos. Aguarda aprovação da reitoria.',
                 action_required=True
             )
     

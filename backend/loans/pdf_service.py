@@ -228,17 +228,19 @@ class LoanRequestPDFGenerator:
         if equipments:
             story.append(Paragraph("3. EQUIPAMENTOS SOLICITADOS", heading_style))
             
-            equipment_data = [['#', 'Nome', 'Tipo', 'Localização']]
-            
+            equipment_data = [['#', 'Equipamento', 'Nº de Série', 'Tipo', 'Localização']]
+
             for idx, eq in enumerate(equipments, 1):
+                # Equipment nao tem campo `name`: identifica-se por marca + modelo
                 equipment_data.append([
                     str(idx),
-                    eq.name,
-                    eq.type,
+                    f'{eq.brand} {eq.model}',
+                    eq.serial_number,
+                    eq.get_type_display(),
                     eq.location or 'N/A'
                 ])
             
-            equipment_table = Table(equipment_data, colWidths=[1.5*cm, 7*cm, 4*cm, 4.5*cm])
+            equipment_table = Table(equipment_data, colWidths=[1.2*cm, 5.5*cm, 3.5*cm, 3*cm, 3.8*cm])
             equipment_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),

@@ -18,7 +18,8 @@ import {
   Loader2,
   Mail,
   Phone,
-  MapPin
+  MapPin,
+  RefreshCw
 } from 'lucide-react';
 import { User, UserRole } from '@/types';
 import { useToast } from '@/hooks/use-toast';
@@ -39,6 +40,8 @@ export const Utilizadores = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  // RF01 - sincronizacao com o Sistema de Gestao de Pessoas externo
+  const [syncing, setSyncing] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,6 +109,26 @@ export const Utilizadores = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSincronizar = async () => {
+    setSyncing(true);
+    try {
+      const resposta: any = await usersAPI.sincronizar();
+      toast({
+        title: "Sincronização concluída",
+        description: resposta?.message || 'Utilizadores sincronizados.',
+      });
+      await loadUsers();
+    } catch (error: any) {
+      toast({
+        title: "Erro na sincronização",
+        description: error?.message || 'Não foi possível contactar o Sistema de Gestão de Pessoas.',
+        variant: "destructive"
+      });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -383,6 +406,17 @@ export const Utilizadores = () => {
           </p>
         </div>
         
+        <div className="flex gap-2">
+        {currentUser?.role === 'admin' && (
+          <Button variant="outline" onClick={handleSincronizar} disabled={syncing}
+            title="Importa e actualiza utilizadores a partir do Sistema de Gestão de Pessoas">
+            {syncing ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />A sincronizar...</>
+            ) : (
+              <><RefreshCw className="w-4 h-4 mr-2" />Sincronizar</>
+            )}
+          </Button>
+        )}
         {canManageUsers() && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -541,6 +575,7 @@ export const Utilizadores = () => {
             </DialogContent>
           </Dialog>
         )}
+        </div>
       </div>
 
       {/* Filters */}

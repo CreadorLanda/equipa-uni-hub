@@ -21,14 +21,19 @@ export const api = {
       tokenPreview: token ? `${token.substring(0, 10)}...` : 'none'
     });
 
-    const config: RequestInit = {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...options.headers,
-      },
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(options.headers as Record<string, string> | undefined),
     };
+
+    // Em uploads (FormData) o browser tem de definir o Content-Type sozinho,
+    // porque so ele sabe o boundary do multipart.
+    if (options.body instanceof FormData) {
+      delete headers['Content-Type'];
+    }
+
+    const config: RequestInit = { ...options, headers };
 
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
@@ -42,7 +47,12 @@ export const api = {
           method: config.method || 'GET',
           errorData
         });
-        throw new Error(errorData.error || errorData.message || JSON.stringify(errorData) || `HTTP error! status: ${response.status}`);
+        const erro = new Error(
+          errorData.error || errorData.message || JSON.stringify(errorData) || `HTTP error! status: ${response.status}`
+        ) as Error & { status?: number; data?: unknown };
+        erro.status = response.status;
+        erro.data = errorData;
+        throw erro;
       }
 
       // Se não há conteúdo, retorna objeto vazio
@@ -82,6 +92,14 @@ export const api = {
   delete: <T = any>(endpoint: string): Promise<T> =>
     api.request<T>(endpoint, {
       method: 'DELETE',
+    }),
+
+  // Envio de ficheiros: o Content-Type tem de ser definido pelo browser
+  // (precisa do boundary), por isso e explicitamente removido aqui.
+  postForm: <T = any>(endpoint: string, formData: FormData): Promise<T> =>
+    api.request<T>(endpoint, {
+      method: 'POST',
+      body: formData,
     }),
 };
 
@@ -126,6 +144,10 @@ export const usersAPI = {
 
   deactivate: (id: string) =>
     api.post(`/users/${id}/deactivate/`),
+
+  // RF01 - sincronizacao com o Sistema de Gestao de Pessoas externo
+  sincronizar: () =>
+    api.post('/users/sincronizar/'),
 };
 
 export const equipmentAPI = {
@@ -197,8 +219,21 @@ export const loansAPI = {
   myLoans: () =>
     api.get('/loans/my_loans/'),
 
-  returnEquipment: (id: string, data?: any) =>
-    api.post(`/loans/${id}/return_equipment/`, data),
+  returnEquipment: (
+    id: string,
+    data?: { return_date?: string; notes?: string; estado_devolucao?: string },
+    documento?: File | null,
+  ) => {
+    if (!documento) {
+      return api.post(`/loans/${id}/return_equipment/`, data);
+    }
+    const form = new FormData();
+    Object.entries(data || {}).forEach(([chave, valor]) => {
+      if (valor !== undefined && valor !== null) form.append(chave, String(valor));
+    });
+    form.append('documento', documento);
+    return api.postForm(`/loans/${id}/return_equipment/`, form);
+  },
 
   confirmarLevantamento: (id: string, data?: any) =>
     api.post(`/loans/${id}/confirmar_levantamento/`, data),
@@ -240,11 +275,44 @@ export const loanRequestsAPI = {
   autorizadas: () =>
     api.get('/loan-requests/autorizadas/'),
 
-  aprovar: (id: string, motivo?: string) =>
-    api.post(`/loan-requests/${id}/aprovar/`, { motivo }),
+  aprovar: (id: string, motivo?: string, documento?: File | null) => {
+    if (!documento) {
+      return api.post(`/loan-requests/${id}/aprovar/`, { motivo });
+    }
+    const form = new FormData();
+    if (motivo) form.append('motivo', motivo);
+    form.append('documento', documento);
+    return api.postForm(`/loan-requests/${id}/aprovar/`, form);
+  },
 
-  rejeitar: (id: string, motivo: string) =>
-    api.post(`/loan-requests/${id}/rejeitar/`, { motivo }),
+  rejeitar: (id: string, motivo: string, documento?: File | null) => {
+    if (!documento) {
+      return api.post(`/loan-requests/${id}/rejeitar/`, { motivo });
+    }
+    const form = new FormData();
+    form.append('motivo', motivo);
+    form.append('documento', documento);
+    return api.postForm(`/loan-requests/${id}/rejeitar/`, form);
+  },
+
+  // RF30 - atribuicao de equipamentos a uma solicitacao autorizada
+  atribuirEquipamentos: (id: string, equipmentIds: number[]) =>
+    api.post(`/loan-requests/${id}/atribuir-equipamentos/`, { equipment_ids: equipmentIds }),
+
+  atribuirPorQrCode: (id: string, qrcodeHash: string, confirmarDisponibilidade = false) =>
+    api.post(`/loan-requests/${id}/atribuir-por-qrcode/`, {
+      qrcode_hash: qrcodeHash,
+      confirmar_disponibilidade: confirmarDisponibilidade,
+    }),
+
+  removerEquipamento: (id: string, equipmentId: number) =>
+    api.post(`/loan-requests/${id}/remover-equipamento/`, { equipment_id: equipmentId }),
+
+  anexarDocumento: (id: string, documento: File) => {
+    const form = new FormData();
+    form.append('documento', documento);
+    return api.postForm(`/loan-requests/${id}/anexar-documento/`, form);
+  },
 
   confirmarLevantamento: (id: string, notes?: string) =>
     api.post(`/loan-requests/${id}/confirmar_levantamento/`, { notes }),

@@ -87,6 +87,10 @@ if %ERRORLEVEL% neq 0 (
 
 echo Backend pronto!
 
+:: Inicia o agendador (RF22 notificacoes de atraso, RF23 cancelamento automatico)
+echo A iniciar agendador de tarefas...
+start "EquipaHub Agendador" cmd /c "cd /d %CD%\backend && call venv\Scripts\activate.bat && python manage.py scheduler --interval 1800"
+
 :: Inicia frontend
 echo A iniciar frontend (localhost:8080)...
 start "EquipaHub Frontend" cmd /c "cd /d %CD% && npx vite --port 8080 --host 0.0.0.0"

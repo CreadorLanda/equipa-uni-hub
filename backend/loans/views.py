@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status, permissions
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q, Count
@@ -24,6 +25,8 @@ class LoanViewSet(viewsets.ModelViewSet):
     queryset = Loan.objects.select_related('user', 'equipment').all()
     serializer_class = LoanSerializer
     permission_classes = [permissions.IsAuthenticated]
+    # multipart e preciso para a imagem/relatorio da devolucao (RF25)
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'user', 'equipment', 'equipment__type']
     search_fields = ['user__name', 'equipment__brand', 'equipment__model', 'purpose']
@@ -195,7 +198,7 @@ class LoanViewSet(viewsets.ModelViewSet):
         
         serializer = LoanReturnSerializer(
             data=request.data, 
-            context={'loan': loan}
+            context={'loan': loan, 'recebido_por': request.user}
         )
         
         if serializer.is_valid():
@@ -208,7 +211,7 @@ class LoanViewSet(viewsets.ModelViewSet):
                 # Log error but don't fail the return
                 print(f"Erro ao enviar notificação de devolução: {e}")
             
-            loan_serializer = LoanSerializer(returned_loan)
+            loan_serializer = LoanSerializer(returned_loan, context={'request': request})
             return Response(
                 {
                     'message': 'Equipamento devolvido com sucesso.',
